@@ -169,9 +169,14 @@ export function mountTeaching(root, folder, materials, initialId, onExit) {
   const tabsWrap = el('nav', 'lesson-tabs');
   tabsWrap.setAttribute('aria-label', 'Lesson materials');
   const toolbar = el('div', 'teaching-tools');
+  toolbar.setAttribute('role', 'toolbar');
+  toolbar.setAttribute('aria-label', 'Annotation tools');
+  toolbar.setAttribute('aria-orientation', 'vertical');
   const viewer = el('main', 'teaching-viewer');
+  const workspace = el('div', 'teaching-workspace');
+  workspace.append(toolbar, viewer);
   const footer = el('footer', 'lesson-footer');
-  shell.append(top, tabsWrap, toolbar, viewer, footer);
+  shell.append(top, tabsWrap, workspace, footer);
   root.replaceChildren(shell);
 
   function current() { return materials.find((item) => item.id === state.active) || materials[0]; }
@@ -202,34 +207,51 @@ export function mountTeaching(root, folder, materials, initialId, onExit) {
   function renderToolbar() {
     toolbar.replaceChildren();
     const item = current();
-    if (item.kind === 'pdf' || item.kind === 'note') {
-      const tools = [['hand','✋ Scroll'],['pen','✎ Pen'],['highlight','▰ Highlight'],['eraser','⌫ Erase']];
-      tools.forEach(([name, label]) => toolbar.append(button(label, () => {
+    toolbar.hidden = item.kind !== 'pdf' && item.kind !== 'note';
+    if (!toolbar.hidden) {
+      const toolButton = (symbol, label, action, classes = '') => {
+        const control = button('', action, `tool-button ${classes}`);
+        control.append(el('span', 'tool-symbol', symbol), el('span', 'tool-caption', label));
+        control.title = label;
+        control.setAttribute('aria-label', label);
+        return control;
+      };
+      const tools = [['hand','✋','Scroll'],['pen','✎','Pen'],['highlight','▰','Highlight'],['eraser','⌫','Erase']];
+      tools.forEach(([name, symbol, label]) => toolbar.append(toolButton(symbol, label, () => {
         state.tool = name;
         state.canvases.forEach((canvas) => { canvas.style.pointerEvents = name === 'hand' ? 'none' : 'auto'; });
         renderToolbar();
-      }, `tool-button ${state.tool === name ? 'active' : ''}`)));
-      toolbar.append(button('↶', () => modifyInk(inkKey(), 'undo', state), 'tool-button icon-only'));
-      toolbar.append(button('↷', () => modifyInk(inkKey(), 'redo', state), 'tool-button icon-only'));
+      }, state.tool === name ? 'active' : '')));
+      toolbar.append(toolButton('↶', 'Undo', () => modifyInk(inkKey(), 'undo', state)));
+      toolbar.append(toolButton('↷', 'Redo', () => modifyInk(inkKey(), 'redo', state)));
+      const colorGroup = el('label', 'tool-color-group');
+      colorGroup.append(el('span', 'tool-caption', 'Colour'));
       const color = el('input', 'color-input'); color.type = 'color'; color.value = state.color;
       color.title = 'Pen colour'; color.setAttribute('aria-label','Pen colour');
       color.addEventListener('input', () => { state.color = color.value; });
-      toolbar.append(color);
-      const sizes = el('select', 'thickness');
-      [[3,'Thin'],[5,'Medium'],[9,'Thick']].forEach(([value, label]) => {
-        const option = el('option', '', label); option.value = value; option.selected = state.width === value; sizes.append(option);
+      colorGroup.append(color); toolbar.append(colorGroup);
+      const sizeGroup = el('label', 'tool-size-group');
+      sizeGroup.append(el('span', 'tool-caption', 'Tool size'));
+      const sizeSlider = el('input', 'tool-size-slider');
+      sizeSlider.type = 'range'; sizeSlider.min = '2'; sizeSlider.max = '24';
+      sizeSlider.step = '1'; sizeSlider.value = String(state.width);
+      sizeSlider.setAttribute('orient', 'vertical');
+      sizeSlider.setAttribute('aria-label', 'Pen, highlighter and eraser size');
+      const sizeValue = el('output', 'tool-size-value', `${state.width}px`);
+      sizeSlider.addEventListener('input', () => {
+        state.width = Number(sizeSlider.value);
+        sizeValue.textContent = `${state.width}px`;
       });
-      sizes.title = 'Pen thickness'; sizes.addEventListener('change', () => { state.width = Number(sizes.value); });
-      toolbar.append(sizes);
-      toolbar.append(button('Clear page', () => modifyInk(inkKey(), 'clear', state), 'tool-button secondary-tool'));
+      sizeGroup.append(sizeSlider, sizeValue); toolbar.append(sizeGroup);
+      toolbar.append(toolButton('✕', 'Clear page', () => modifyInk(inkKey(), 'clear', state), 'secondary-tool'));
       if (item.kind === 'pdf') {
         toolbar.append(el('span', 'tool-separator'));
-        toolbar.append(button('−', () => changeZoom(0.8), 'tool-button icon-only'));
+        toolbar.append(toolButton('−', 'Zoom out', () => changeZoom(0.8)));
         toolbar.append(el('span', 'zoom-label', `${Math.round(state.zoom * 100)}%`));
-        toolbar.append(button('+', () => changeZoom(1.25), 'tool-button icon-only'));
-        toolbar.append(button('Fit width', () => { state.zoom = 1; render(); }, 'tool-button secondary-tool'));
+        toolbar.append(toolButton('+', 'Zoom in', () => changeZoom(1.25)));
+        toolbar.append(toolButton('↔', 'Fit width', () => { state.zoom = 1; render(); }, 'secondary-tool'));
       }
-    } else toolbar.append(el('span', 'toolbar-hint', 'Material opens without annotation tools'));
+    }
   }
   function changeZoom(multiplier) {
     remember();

@@ -7,9 +7,10 @@ A Vite + Supabase web app for one teacher preparing lessons on a tablet and open
 - Default subjects: BM Tahun 5, BM Tahun 6, PJPK Tahun 1, PJPK Tahun 3.
 - Nested folders. Each lesson folder can hold **mixed** materials in saved teaching order: rich-text notes, uploaded PDFs, YouTube videos and external HTTPS links (Wayground, Wordwall, etc.).
 - Teacher can add, edit, rename, move, duplicate and soft-delete materials; folders can be renamed, moved, published and moved to the Recycle Bin. Restore or permanently delete from the Recycle Bin.
-- Notes are saved to Supabase; PDF copies upload to a public Supabase Storage bucket.
+- Editable text documents are saved to Supabase. Paste plain text, format headings, bold/italic/underline, lists and paragraph alignment (left/centre/right/justified). Press **Tab** to indent a paragraph and **Shift+Tab** to outdent, or use the corresponding buttons. Alignment and indentation are saved with the note. Download a genuine Word `.docx` file or choose **Print / Save PDF** (the browser's print dialog) from the editor or the document's menu. Downloads are separate copies, not changes to the saved document.
+- PDF copies upload to a public Supabase Storage bucket.
 - Classroom view shows only published folders and their materials. Each folder supports **Start lesson**, direct material tabs and Previous/Next controls.
-- PDF.js viewer with scroll/hand, pen, highlighter, whole-stroke eraser, undo/redo, zoom, page clearing, and lazy page rendering. Notes have a temporary annotation overlay. Ink persists **only within the current open browser session**, not across devices.
+- PDF.js viewer with scroll/hand, pen, highlighter, whole-stroke eraser, undo/redo, zoom, page clearing, and lazy page rendering. Teaching Mode places annotation tools vertically along the left side, with a **vertical slider** for pen/highlighter/eraser size. Editable documents also have a temporary annotation overlay in Teaching Mode. Ink persists **only within the current open browser session**, not across devices; Word/PDF exports contain the underlying document, not the classroom ink.
 - YouTube embeds when the video allows it; fallback **Open on YouTube**. External learning sites open in a new tab for reliability.
 - Tablet-friendly library and landscape smartboard Teaching Mode; browser full-screen when supported.
 
@@ -18,7 +19,8 @@ A Vite + Supabase web app for one teacher preparing lessons on a tablet and open
 ### 1. Prepare the database
 
 1. In [Supabase Dashboard](https://supabase.com/dashboard), open your existing project.
-2. Go to **SQL Editor**, open `supabase/schema.sql` from this project and run its contents **once**. It creates folders, materials, the public PDF bucket and the required Row Level Security rules.
+2. Go to **SQL Editor**, open `supabase/schema.sql` from this project and run its contents. It creates folders, materials, the public PDF bucket and the required Row Level Security rules. If this project already has older `folders.published` / `materials.body` columns, the script adds the new columns and copies those values **without deleting the old columns or records**.
+   If an older schema was previously installed, inspect all existing policies under **Database → Policies** before putting the site online: PostgreSQL permits multiple policies to combine, and unknown permissive legacy policies could still allow unintended access. Do not publish until these have been reviewed.
 3. Go to **Authentication → Users** and create/invite **your own teacher account** using your email. Do not use a student's email.
 4. Return to **SQL Editor** and run this SQL, replacing the email with the exact address used for that account:
 

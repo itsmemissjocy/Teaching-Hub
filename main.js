@@ -5,6 +5,7 @@ import {
   allAncestors, check, message,
 } from './lib.js';
 import { mountTeaching } from './teaching.js';
+import { exportWord, printDocument } from './export.js';
 
 const root = document.getElementById('app');
 const state = {
@@ -243,12 +244,19 @@ function renderFolder(main) {
           const up = button('↑', () => reorder(materials, index, -1), 'mini-button'); up.disabled = index === 0; up.title = 'Move up';
           const down = button('↓', () => reorder(materials, index, 1), 'mini-button'); down.disabled = index === materials.length - 1; down.title = 'Move down';
           order.append(up, down); row.append(order);
-          row.append(menu([
-            ['Edit', () => showMaterialEditor(current.id, material)],
+          const actions = [['Edit', () => showMaterialEditor(current.id, material)]];
+          if (material.kind === 'note') actions.push(
+            ['Download Word (.docx)', () => exportWord(material.title, material.content).catch(fail)],
+            ['Print / Save PDF', () => {
+              try { printDocument(material.title, material.content); } catch (error) { fail(error); }
+            }],
+          );
+          actions.push(
             ['Move', () => showMoveMaterial(material)],
             ['Duplicate', () => duplicateMaterial(material)],
             ['Move to Recycle Bin', () => trashRow('materials', material), true],
-          ]));
+          );
+          row.append(menu(actions));
         }
         list.append(row);
       });
@@ -458,7 +466,7 @@ function showMaterialEditor(folderId, existing = null) {
   const { overlay, dialog, close } = modal(existing ? 'Edit material' : 'Add teaching material');
   dialog.classList.add('material-modal');
   const kind = el('select', 'text-field');
-  [['note','Text note'],['pdf','PDF document'],['youtube','YouTube video'],['link','Website link']].forEach(([value,label]) => {
+  [['note','Editable document'],['pdf','PDF document'],['youtube','YouTube video'],['link','Website link']].forEach(([value,label]) => {
     const option = el('option','',label); option.value = value; kind.append(option);
   });
   kind.value = existing?.kind || 'note';
@@ -468,27 +476,62 @@ function showMaterialEditor(folderId, existing = null) {
   const feedback = el('p','save-status','Not saved yet');
   const richEditor = el('div', 'rich-editor');
   richEditor.contentEditable = 'true';
-  richEditor.setAttribute('role','textbox'); richEditor.setAttribute('aria-label','Text note content');
+  richEditor.setAttribute('role','textbox'); richEditor.setAttribute('aria-label','Editable document content');
   richEditor.setAttribute('aria-multiline','true');
   richEditor.innerHTML = safeNote(existing?.content || '<p></p>');
   const urlInput = el('input','text-field'); urlInput.type='url'; urlInput.placeholder='https://'; urlInput.value=existing?.url || '';
   const fileInput = el('input','file-input'); fileInput.type='file'; fileInput.accept='application/pdf,.pdf';
   const format = el('div','format-toolbar');
-  [['bold','B'],['italic','I'],['insertUnorderedList','• List'],['insertOrderedList','1. List'],['formatBlock','Heading']].forEach(([command,label]) => {
+  format.setAttribute('role', 'toolbar');
+  format.setAttribute('aria-label', 'Document formatting');
+  const runEditorCommand = (command) => {
+    richEditor.focus();
+    const changed = document.execCommand(command, false, command === 'formatBlock' ? 'h2' : null);
+    if (!changed && command === 'indent') document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;');
+    richEditor.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  [
+    ['bold','B','Bold'],['italic','I','Italic'],['underline','U','Underline'],
+    ['insertUnorderedList','• List','Bulleted list'],['insertOrderedList','1. List','Numbered list'],
+    ['formatBlock','Heading','Heading'],
+    ['justifyLeft','⇤ Left','Align left'],['justifyCenter','≡ Centre','Align centre'],
+    ['justifyRight','Right ⇥','Align right'],['justifyFull','☰ Justify','Justify text'],
+    ['outdent','⇤ Outdent','Decrease indentation (Shift+Tab)'],
+    ['indent','Indent ⇥','Increase indentation (Tab)'],
+  ].forEach(([command,label,description]) => {
     const control = button(label, () => {
-      richEditor.focus();
-      document.execCommand(command,false,command === 'formatBlock' ? 'h2' : null);
+      runEditorCommand(command);
     }, 'format-button');
+    control.title = description;
+    control.setAttribute('aria-label', description);
     control.addEventListener('pointerdown', (event) => event.preventDefault());
     format.append(control);
+  });
+  richEditor.addEventListener('keydown', (event) => {
+    if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey) return;
+    event.preventDefault();
+    runEditorCommand(event.shiftKey ? 'outdent' : 'indent');
   });
   richEditor.addEventListener('paste',(event) => {
     event.preventDefault();
     document.execCommand('insertText',false,event.clipboardData.getData('text/plain'));
   });
+  const exportActions = el('div', 'document-export-actions');
+  exportActions.append(
+    button('Download Word (.docx)', () => {
+      exportWord(title.value.trim() || 'Untitled document', richEditor.innerHTML).catch(fail);
+    }, 'button quiet'),
+    button('Print / Save PDF', () => {
+      try { printDocument(title.value.trim() || 'Untitled document', richEditor.innerHTML); }
+      catch (error) { fail(error); }
+    }, 'button quiet'),
+  );
   function switchFields() {
     dynamic.replaceChildren();
-    if (kind.value === 'note') dynamic.append(format,richEditor);
+    if (kind.value === 'note') dynamic.append(
+      el('p', 'field-hint', 'Paste or type here. Use Tab / Shift+Tab to indent or outdent paragraphs. Save material keeps the document online; exporting downloads a separate copy.'),
+      format,richEditor,exportActions,
+    );
     else if (kind.value === 'pdf') {
       dynamic.append(formLine('Upload a PDF (recommended; max 25 MB)',fileInput));
       dynamic.append(el('p','field-hint','Or paste a direct HTTPS PDF URL. Google Drive sharing links often cannot load in the PDF viewer.'));

@@ -9,7 +9,7 @@ export const supabase = configured
 export const SUBJECTS = ['BM Tahun 5', 'BM Tahun 6', 'PJPK Tahun 1', 'PJPK Tahun 3'];
 export const META = {
   folder: { icon: 'folder', label: 'Folder' },
-  note: { icon: 'file-text', label: 'Text note' },
+  note: { icon: 'file-text', label: 'Editable document' },
   pdf: { icon: 'file-up', label: 'PDF' },
   youtube: { icon: 'play-square', label: 'YouTube' },
   link: { icon: 'external-link', label: 'Website' },
@@ -30,10 +30,35 @@ export function button(label, handler, className = 'button') {
 }
 
 export function safeNote(html = '') {
-  return DOMPurify.sanitize(html, {
+  // Keep only the text alignment and indentation needed by our document editor.
+  // DOMPurify deliberately does not sanitize CSS itself, so we strip every
+  // incoming style from an inert fragment before inserting it into the page.
+  const fragment = DOMPurify.sanitize(html, {
     ALLOWED_TAGS: ['p','div','br','strong','b','em','i','u','h1','h2','h3','ul','ol','li','blockquote'],
-    ALLOWED_ATTR: [],
+    ALLOWED_ATTR: ['style', 'align'],
+    RETURN_DOM_FRAGMENT: true,
   });
+  const blockTags = new Set(['P','DIV','H1','H2','H3','UL','OL','LI','BLOCKQUOTE']);
+  for (const node of fragment.querySelectorAll('*')) {
+    const alignment = (node.style.textAlign || node.getAttribute('align') || '').toLowerCase().trim();
+    const marginLeft = node.style.marginLeft;
+    const textIndent = node.style.textIndent;
+    node.removeAttribute('style');
+    node.removeAttribute('align');
+    if (!blockTags.has(node.tagName)) continue;
+    if (['left','center','right','justify'].includes(alignment)) node.style.textAlign = alignment;
+    const safeLength = (value) => {
+      const match = /^([0-9]+(?:\.[0-9]+)?)(px|pt|em)$/i.exec(value.trim());
+      if (!match) return null;
+      const px = Number(match[1]) * (match[2].toLowerCase() === 'pt' ? 4 / 3 : match[2].toLowerCase() === 'em' ? 16 : 1);
+      return `${Math.min(240, Math.round(px))}px`;
+    };
+    if (safeLength(marginLeft)) node.style.marginLeft = safeLength(marginLeft);
+    if (safeLength(textIndent)) node.style.textIndent = safeLength(textIndent);
+  }
+  const container = document.createElement('div');
+  container.append(fragment);
+  return container.innerHTML;
 }
 
 export function safeHttpUrl(value) {

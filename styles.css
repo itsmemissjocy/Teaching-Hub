@@ -120,6 +120,9 @@ h1, h2, h3 { font-family: Manrope, 'DM Sans', sans-serif; letter-spacing: -.035e
 .format-toolbar { display:flex; flex-wrap:wrap; gap:6px; background:#f0f4ee; padding:8px; border-radius:10px 10px 0 0; border:1px solid #d4dfd3; border-bottom:0; margin-top:10px; }
 .format-button { border:1px solid transparent; background:#fff; border-radius:6px; min-width:37px; height:35px; padding:0 9px; font-weight:700; }
 .rich-editor { min-height:220px; max-height:420px; overflow:auto; background:white; border:1px solid #d4dfd3; border-radius:0 0 10px 10px; padding:20px; line-height:1.7; font-weight:400; font-size:15px; }
+.rich-editor, .note-body { tab-size:4; }
+.rich-editor blockquote, .note-body blockquote { border-left:3px solid #c9d9cc; padding-left:13px; margin-left:18px; }
+.document-export-actions { display:flex; flex-wrap:wrap; gap:8px; padding:12px 0 4px; }
 .rich-editor p, .note-body p { margin:0 0 .8em; }
 .save-status { font-size:12px; min-height:18px; color:#748477; }
 .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:100; background:#254e3d; color:white; padding:14px 22px; border-radius:10px; box-shadow:0 8px 30px #0002; font-size:13px; font-weight:700; max-width:min(550px,90vw); }
@@ -135,17 +138,24 @@ h1, h2, h3 { font-family: Manrope, 'DM Sans', sans-serif; letter-spacing: -.035e
 .lesson-tabs { display:flex; gap:3px; overflow-x:auto; scrollbar-width:thin; background:#eef1ec; padding:5px 12px 0; flex:none; }
 .lesson-tab { flex:none; max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; background:transparent; color:#65796b; font-size:12px; font-weight:700; border:0; border-radius:10px 10px 0 0; padding:13px 16px; min-height:48px; }
 .lesson-tab.selected { background:#fffefa; color:var(--green-dark); box-shadow:inset 0 3px var(--green); }
-.teaching-tools { display:flex; align-items:center; gap:6px; min-height:55px; background:#fffefa; border-bottom:1px solid var(--line); padding:6px 12px; overflow-x:auto; flex:none; scrollbar-width:thin; }
+.teaching-workspace { display:flex; flex:1; min-height:0; min-width:0; }
+.teaching-tools { display:flex; flex-direction:column; align-items:center; gap:6px; width:98px; background:#fffefa; border-right:1px solid var(--line); padding:9px 5px; overflow-y:auto; overflow-x:hidden; flex:none; scrollbar-width:thin; }
+.teaching-tools[hidden] { display:none; }
 .tool-button { flex:none; background:transparent; color:#5c7264; font-size:12px; font-weight:800; border:1px solid transparent; border-radius:8px; min-height:48px; padding:0 13px; white-space:nowrap; }
+.teaching-tools .tool-button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; width:84px; min-height:60px; padding:5px 3px; white-space:normal; }
+.tool-symbol { font-size:23px; line-height:1.2; }
+.tool-caption { font-size:10px; font-weight:700; text-align:center; color:#536e5b; line-height:1.3; }
 .tool-button.active { background:#e1ebe1; border-color:#b9d0bc; color:#24553e; box-shadow:inset 0 -2px #59896b; }
 .tool-button.icon-only { font-size:22px; min-width:48px; }
 .tool-button.secondary-tool { border-color:var(--line); }
 .color-input { flex:none; height:48px; width:48px; border:1px solid var(--line); background:white; border-radius:8px; padding:5px; }
-.thickness { border:1px solid var(--line); background:white; border-radius:7px; min-height:48px; padding:0 7px; font-size:12px; color:var(--text); }
-.tool-separator { flex:none; height:23px; width:1px; background:var(--line); margin:0 4px; }
+.tool-color-group, .tool-size-group { display:flex; flex-direction:column; align-items:center; gap:5px; flex:none; width:100%; padding:5px 0; }
+.tool-size-slider { writing-mode:vertical-lr; direction:rtl; width:34px; height:145px; accent-color:var(--green); cursor:pointer; }
+.tool-size-value { font-size:11px; font-weight:800; color:var(--green-dark); }
+.tool-separator { flex:none; height:1px; width:65%; background:var(--line); margin:4px 0; }
 .zoom-label { flex:none; min-width:42px; text-align:center; font-size:12px; font-weight:700; }
 .toolbar-hint { color:#86958a; font-size:12px; }
-.teaching-viewer { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; padding:18px; display:flex; flex-direction:column; align-items:center; gap:18px; position:relative; }
+.teaching-viewer { flex:1; min-height:0; min-width:0; overflow:auto; overscroll-behavior:contain; padding:18px; display:flex; flex-direction:column; align-items:center; gap:18px; position:relative; }
 .pdf-pages { display:flex; align-items:center; flex-direction:column; gap:18px; padding-bottom:30px; }
 .pdf-page { flex:none; background:white; position:relative; box-shadow:0 1px 10px #1c2c211f; }
 .pdf-render { display:block; width:100%; height:100%; }
@@ -183,6 +193,8 @@ h1, h2, h3 { font-family: Manrope, 'DM Sans', sans-serif; letter-spacing: -.035e
   .teaching-title { font-size:12px; }
   .note-pad { padding:0; }
   .lesson-tab { max-width:180px; }
-  .secondary-tool { display:none; }
+  .teaching-tools { width:80px; padding:8px 4px; }
+  .teaching-tools .tool-button { width:70px; min-height:56px; }
+  .teaching-tools .tool-symbol { font-size:21px; }
 }
 @media (prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior:auto !important; transition:none !important; } }
