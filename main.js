@@ -114,15 +114,15 @@ function renderLibrary() {
   const brand = button('✳  My Teaching Hub', () => { state.folderId = null; state.trash = false; state.search = ''; renderLibrary(); }, 'brand');
   const headerActions = el('div', 'header-actions');
   if (state.teacher) {
-    headerActions.append(el('span', 'teacher-pill', 'Teacher mode'));
+    headerActions.append(el('span', 'teacher-pill', 'Editing unlocked'));
     headerActions.append(button('Recycle Bin', () => { state.trash = true; renderLibrary(); }, 'button quiet'));
-    headerActions.append(button('Sign out', async () => {
+    headerActions.append(button('🔒 Lock editing', async () => {
       await supabase.auth.signOut(); state.user = null; state.teacher = false;
       state.folderId = null; await loadData(); renderLibrary();
     }, 'button quiet'));
   } else {
-    headerActions.append(el('span', 'viewer-pill', 'Classroom view'));
-    headerActions.append(button('Teacher sign in', showLogin, 'button outline'));
+    headerActions.append(el('span', 'viewer-pill', 'View & annotate freely'));
+    headerActions.append(button('🔓 Unlock editing', showLogin, 'button outline'));
   }
   header.append(brand, headerActions);
   const content = el('div', 'library-layout');
@@ -181,7 +181,7 @@ function renderFolder(main) {
   if (current) {
     const lessonItems = ordered(activeMaterials().filter((material) => material.folder_id === current.id));
     if (lessonItems.length) heroActions.append(button('▶ Start lesson', () => startLesson(current), 'button primary start-button'));
-    if (current.is_public && state.teacher) heroActions.append(button('Copy classroom link', () => copyLessonLink(current), 'button quiet'));
+    if (current.is_public) heroActions.append(button('Copy lesson link', () => copyLessonLink(current), 'button quiet'));
   }
   hero.append(heroActions);
   main.append(hero);
@@ -244,7 +244,9 @@ function renderFolder(main) {
           const up = button('↑', () => reorder(materials, index, -1), 'mini-button'); up.disabled = index === 0; up.title = 'Move up';
           const down = button('↓', () => reorder(materials, index, 1), 'mini-button'); down.disabled = index === materials.length - 1; down.title = 'Move down';
           order.append(up, down); row.append(order);
-          const actions = [['Edit', () => showMaterialEditor(current.id, material)]];
+          const actions = [
+            ['Edit original', () => showMaterialEditor(current.id, material)],
+          ];
           if (material.kind === 'note') actions.push(
             ['Download Word (.docx)', () => exportWord(material.title, material.content).catch(fail)],
             ['Print / Save PDF', () => {
@@ -257,6 +259,15 @@ function renderFolder(main) {
             ['Move to Recycle Bin', () => trashRow('materials', material), true],
           );
           row.append(menu(actions));
+        }
+        // Exporting a document is read-only and available without signing in.
+        if (!state.teacher && material.kind === 'note') {
+          row.append(menu([
+            ['Download Word (.docx)', () => exportWord(material.title, material.content).catch(fail)],
+            ['Print / Save PDF', () => {
+              try { printDocument(material.title, material.content); } catch (error) { fail(error); }
+            }],
+          ]));
         }
         list.append(row);
       });
@@ -339,8 +350,8 @@ function formLine(label, control) {
 }
 
 function showLogin() {
-  const { overlay, dialog } = modal('Teacher sign in');
-  dialog.append(el('p', 'modal-description', 'Enter the approved teacher email. You will receive a sign-in link; no password is needed.'));
+  const { overlay, dialog } = modal('Unlock protected editing');
+  dialog.append(el('p', 'modal-description', 'Viewing, drawing, highlighting and erasing annotations never require a login. Only changes to the original library require your approved teacher email. You can stay signed in on your own device.'));
   const email = el('input', 'text-field');
   email.type = 'email'; email.placeholder = 'your@email.com'; email.required = true;
   const feedback = el('p', 'save-status');
@@ -366,7 +377,7 @@ async function createFolder(parentId) {
   await perform(async () => {
     await check(await supabase.from('folders').insert({
       owner_id: state.user.id, parent_id: parentId,
-      name: name.trim(), sort_order: nextPosition(rows), is_public: false,
+      name: name.trim(), sort_order: nextPosition(rows), is_public: true,
     }));
   }, 'Folder created');
 }
