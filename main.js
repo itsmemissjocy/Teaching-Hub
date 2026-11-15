@@ -115,6 +115,7 @@ function renderLibrary() {
   const headerActions = el('div', 'header-actions');
   if (state.teacher) {
     headerActions.append(el('span', 'teacher-pill', 'Editing unlocked'));
+    headerActions.append(button('Set / change PIN', showPinSetup, 'button quiet'));
     headerActions.append(button('Recycle Bin', () => { state.trash = true; renderLibrary(); }, 'button quiet'));
     headerActions.append(button('🔒 Lock editing', async () => {
       await supabase.auth.signOut(); state.user = null; state.teacher = false;
@@ -234,7 +235,7 @@ function renderFolder(main) {
       materials.forEach((material, index) => {
         const row = el('div', 'material-row');
         const open = button('', () => startLesson(current, material.id), 'material-open');
-        open.append(el('span', `material-icon kind-${material.kind}`, material.kind === 'note' ? '≡' : material.kind === 'pdf' ? 'PDF' : material.kind === 'youtube' ? '▶' : '↗'));
+        open.append(el('span', `material-icon kind-${material.kind}`, material.kind === 'note' ? '≡' : material.kind === 'pdf' ? 'PDF' : material.kind === 'image' ? '▧' : material.kind === 'audio' ? '♪' : material.kind === 'youtube' ? '▶' : '↗'));
         const text = el('span', 'material-copy');
         text.append(el('span', 'material-name', material.title), el('span', 'material-type', META[material.kind].label));
         open.append(text);
@@ -350,23 +351,79 @@ function formLine(label, control) {
 }
 
 function showLogin() {
-  const { overlay, dialog } = modal('Unlock protected editing');
-  dialog.append(el('p', 'modal-description', 'Viewing, drawing, highlighting and erasing annotations never require a login. Only changes to the original library require your approved teacher email. You can stay signed in on your own device.'));
-  const email = el('input', 'text-field');
-  email.type = 'email'; email.placeholder = 'your@email.com'; email.required = true;
-  const feedback = el('p', 'save-status');
-  const submit = button('Send sign-in link', async () => {
-    if (!email.validity.valid) { feedback.textContent = 'Enter a valid email address.'; return; }
-    submit.disabled = true; feedback.textContent = 'Sending…';
+  const { overlay, dialog } = modal('Unlock editing with your PIN');
+  dialog.append(el('p', 'modal-description',
+    'Viewing, annotating, and clearing markings never need a PIN. Enter your editor passcode only when changing original materials. Use at least 8 characters.'));
+  const pinInput = el('input', 'text-field');
+  pinInput.type = 'password'; pinInput.inputMode = 'numeric';
+  pinInput.autocomplete = 'current-password'; pinInput.minLength = 8;
+  pinInput.placeholder = 'Editor PIN or passcode';
+  const feedback = el('p', 'save-status', '');
+  const submit = button('Unlock editing', async () => {
+    const pin = pinInput.value;
+    if (pin.length < 8) {
+      feedback.textContent = 'Use a PIN of at least 8 digits, or a longer passphrase.';
+      return;
+    }
+    submit.disabled = true; feedback.textContent = 'Checking passcode…';
     try {
-      await check(await supabase.auth.signInWithOtp({
-        email: email.value.trim(),
-        options: { shouldCreateUser: false, emailRedirectTo: `${location.origin}${location.pathname}` },
+      const response = await fetch('/api/editor-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({ pin }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Could not unlock editing.');
+      await check(await supabase.auth.setSession({
+        access_token: payload.access_token,
+        refresh_token: payload.refresh_token,
       }));
-      feedback.textContent = 'Check your inbox and open the sign-in link on this device.';
-    } catch (error) { feedback.textContent = message(error); submit.disabled = false; }
+      pinInput.value = '';
+      overlay.remove();
+      await initialize();
+    } catch (error) {
+      feedback.textContent = message(error);
+      submit.disabled = false;
+    }
   }, 'button primary full');
-  dialog.append(formLine('Email', email), feedback, submit);
+  pinInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') submit.click();
+  });
+  dialog.append(formLine('Editing passcode', pinInput), feedback, submit,
+    el('p', 'field-hint', 'First-time setup: open Teaching Hub on a device where editing is already unlocked, choose Set / change PIN, then configure EDITOR_EMAIL in Vercel. No PIN is stored in the website source.'));
+}
+
+function showPinSetup() {
+  if (!state.teacher) return;
+  const { dialog } = modal('Set or change your editing PIN');
+  dialog.append(el('p', 'modal-description',
+    'Use at least 8 digits (10 or more recommended), or a longer passphrase. This is saved securely in Supabase Auth, not in website code. Do not use a short 4-digit PIN.'));
+  const first = el('input', 'text-field');
+  first.type = 'password'; first.inputMode = 'numeric';
+  first.autocomplete = 'new-password'; first.minLength = 8; first.maxLength = 128;
+  const second = el('input', 'text-field');
+  second.type = 'password'; second.inputMode = 'numeric'; second.autocomplete = 'new-password';
+  const feedback = el('p', 'save-status');
+  const save = button('Save editing PIN', async () => {
+    if (first.value.length < 8 || first.value.length > 128) {
+      feedback.textContent = 'PIN must be at least 8 characters long.'; return;
+    }
+    if (first.value !== second.value) {
+      feedback.textContent = 'The two passcodes do not match.'; return;
+    }
+    save.disabled = true; feedback.textContent = 'Saving securely…';
+    try {
+      await check(await supabase.auth.updateUser({ password: first.value }));
+      first.value = ''; second.value = '';
+      feedback.textContent = 'PIN set in Supabase. Add EDITOR_EMAIL as a private Vercel environment variable before testing PIN unlock on a new device.';
+      toast('Editing passcode saved.');
+    } catch (error) {
+      feedback.textContent = message(error);
+    } finally { save.disabled = false; }
+  }, 'button primary full');
+  dialog.append(formLine('New PIN or passcode', first),
+    formLine('Repeat PIN or passcode', second), feedback, save);
 }
 
 async function createFolder(parentId) {
@@ -477,7 +534,7 @@ function showMaterialEditor(folderId, existing = null) {
   const { overlay, dialog, close } = modal(existing ? 'Edit material' : 'Add teaching material');
   dialog.classList.add('material-modal');
   const kind = el('select', 'text-field');
-  [['note','Editable document'],['pdf','PDF document'],['youtube','YouTube video'],['link','Website link']].forEach(([value,label]) => {
+  [['note','Editable document'],['pdf','PDF document'],['image','Picture / image'],['audio','Audio / recording'],['youtube','YouTube video'],['link','Website link']].forEach(([value,label]) => {
     const option = el('option','',label); option.value = value; kind.append(option);
   });
   kind.value = existing?.kind || 'note';
@@ -492,6 +549,7 @@ function showMaterialEditor(folderId, existing = null) {
   richEditor.innerHTML = safeNote(existing?.content || '<p></p>');
   const urlInput = el('input','text-field'); urlInput.type='url'; urlInput.placeholder='https://'; urlInput.value=existing?.url || '';
   const fileInput = el('input','file-input'); fileInput.type='file'; fileInput.accept='application/pdf,.pdf';
+  const mediaInput = el('input','file-input'); mediaInput.type='file';
   const format = el('div','format-toolbar');
   format.setAttribute('role', 'toolbar');
   format.setAttribute('aria-label', 'Document formatting');
@@ -547,12 +605,17 @@ function showMaterialEditor(folderId, existing = null) {
       dynamic.append(formLine('Upload a PDF (recommended; max 25 MB)',fileInput));
       dynamic.append(el('p','field-hint','Or paste a direct HTTPS PDF URL. Google Drive sharing links often cannot load in the PDF viewer.'));
       dynamic.append(formLine('PDF URL (optional when uploading)',urlInput));
+    } else if (kind.value === 'image' || kind.value === 'audio') {
+      mediaInput.accept = kind.value === 'image' ? 'image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif' : 'audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav,audio/ogg,audio/webm,audio/aac,.mp3,.m4a,.wav,.ogg,.webm,.aac';
+      dynamic.append(formLine(kind.value === 'image' ? 'Upload a picture (max 25 MB)' : 'Upload an audio recording (max 25 MB)', mediaInput));
+      dynamic.append(el('p', 'field-hint', 'Or paste a direct public HTTPS media URL. Uploaded media is viewable by anyone using Teaching Hub.'));
+      dynamic.append(formLine('Picture / audio URL (optional when uploading)', urlInput));
     } else dynamic.append(formLine(kind.value === 'youtube' ? 'YouTube URL' : 'Website URL',urlInput));
   }
   kind.addEventListener('change',switchFields);
   switchFields();
   let dirty = false;
-  [title,urlInput,kind,fileInput,richEditor].forEach((field) => field.addEventListener('input', () => { dirty=true; feedback.textContent='Unsaved changes'; }));
+  [title,urlInput,kind,fileInput,mediaInput,richEditor].forEach((field) => field.addEventListener('input', () => { dirty=true; feedback.textContent='Unsaved changes'; }));
   const dismiss = () => { if (!dirty || window.confirm('Discard unsaved changes?')) overlay.remove(); };
   close.onclick = dismiss;
   overlay.onclick = (event) => { if (event.target === overlay) dismiss(); };
@@ -560,6 +623,7 @@ function showMaterialEditor(folderId, existing = null) {
     if (!title.value.trim()) { feedback.textContent='Please enter a title.'; return; }
     save.disabled=true; feedback.textContent='Saving…';
     let uploadedPath = null;
+    let uploadedBucket = null;
     try {
       const data = {
         kind:kind.value, title:title.value.trim(),
@@ -573,13 +637,36 @@ function showMaterialEditor(folderId, existing = null) {
         const file = fileInput.files[0];
         if (file) {
           if (!/\.pdf$/i.test(file.name) || file.size > 25 * 1024 * 1024) throw new Error('Choose a PDF no larger than 25 MB.');
+          uploadedBucket = 'teaching-pdfs';
           uploadedPath = `${state.user.id}/${crypto.randomUUID()}.pdf`;
-          await check(await supabase.storage.from('teaching-pdfs').upload(uploadedPath,file,{contentType:'application/pdf'}));
+          await check(await supabase.storage.from(uploadedBucket).upload(uploadedPath,file,{contentType:'application/pdf'}));
           data.storage_path=uploadedPath;
           data.url=supabase.storage.from('teaching-pdfs').getPublicUrl(uploadedPath).data.publicUrl;
         } else if (urlInput.value.trim()) data.url=safeHttpUrl(urlInput.value);
         else if (existing?.url) data.url=existing.url;
         else throw new Error('Upload a PDF or paste a direct PDF URL.');
+      }
+      if (kind.value === 'image' || kind.value === 'audio') {
+        const file = mediaInput.files[0];
+        if (file) {
+          const ext = file.name.split('.').pop()?.toLowerCase();
+          const permitted = {
+            image: { jpg: ['image/jpeg'], jpeg: ['image/jpeg'], png: ['image/png'], webp: ['image/webp'], gif: ['image/gif'] },
+            audio: { mp3: ['audio/mpeg'], m4a: ['audio/mp4','audio/x-m4a'], wav: ['audio/wav','audio/x-wav'], ogg: ['audio/ogg'], webm: ['audio/webm'], aac: ['audio/aac'] },
+          };
+          const types = permitted[kind.value][ext];
+          if (!types || (file.type && !types.includes(file.type))) {
+            throw new Error('Unsupported media format. Use JPG/PNG/WebP/GIF for pictures or MP3/M4A/WAV/OGG/WebM/AAC for audio.');
+          }
+          if (file.size > 25 * 1024 * 1024) throw new Error('Maximum media file size is 25 MB.');
+          uploadedBucket = 'teaching-media';
+          uploadedPath = `${state.user.id}/${crypto.randomUUID()}.${ext}`;
+          await check(await supabase.storage.from(uploadedBucket).upload(uploadedPath,file,{contentType: file.type || types[0]}));
+          data.storage_path = uploadedPath;
+          data.url = supabase.storage.from(uploadedBucket).getPublicUrl(uploadedPath).data.publicUrl;
+        } else if (urlInput.value.trim()) data.url = safeHttpUrl(urlInput.value);
+        else if (existing?.url) data.url = existing.url;
+        else throw new Error('Upload a picture/audio file or paste a direct HTTPS URL.');
       }
       if (existing) await check(await supabase.from('materials').update(data).eq('id',existing.id));
       else await check(await supabase.from('materials').insert({
@@ -588,7 +675,7 @@ function showMaterialEditor(folderId, existing = null) {
       dirty=false; overlay.remove(); toast('Saved successfully. Your material is available on other devices.');
       await loadData(); renderLibrary();
     } catch (error) {
-      if (uploadedPath) await supabase.storage.from('teaching-pdfs').remove([uploadedPath]);
+      if (uploadedPath) await supabase.storage.from(uploadedBucket || 'teaching-pdfs').remove([uploadedPath]);
       feedback.textContent=`Save failed: ${message(error)}`;
       save.disabled=false;
     }
