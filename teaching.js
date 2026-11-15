@@ -83,7 +83,7 @@ function attachInk(canvas, key, state) {
     if (record.strokes.length !== before) eraserChanged = true;
   };
   canvas.addEventListener('pointerdown', (event) => {
-    if (state.tool === 'hand' || event.button !== 0) return;
+    if (state.pinching || state.tool === 'hand' || event.button !== 0) return;
     event.preventDefault();
     pointer = event.pointerId;
     canvas.setPointerCapture(pointer);
@@ -101,10 +101,19 @@ function attachInk(canvas, key, state) {
       };
       record.strokes.push(activeStroke);
     }
+    state.cancelActiveInk = () => {
+      if (activeStroke) {
+        record.strokes = record.strokes.filter((stroke) => stroke !== activeStroke);
+        record.undo.pop();
+        activeStroke = null;
+        draw(canvas, key);
+      }
+      pointer = null;
+    };
     draw(canvas, key);
   });
   canvas.addEventListener('pointermove', (event) => {
-    if (event.pointerId !== pointer) return;
+    if (state.pinching || event.pointerId !== pointer) return;
     event.preventDefault();
     if (state.tool === 'eraser') eraseAt(pos(event));
     else if (activeStroke) activeStroke.points.push(pos(event));
@@ -181,7 +190,7 @@ export function mountTeaching(root, folder, materials, initialId, onExit) {
 
   function current() { return materials.find((item) => item.id === state.active) || materials[0]; }
   function remember() {
-    materialView.set(state.active, { scroll: viewer.scrollTop, zoom: state.zoom });
+    materialView.set(state.active, { scroll: viewer.scrollTop, scrollLeft: viewer.scrollLeft, zoom: state.zoom });
   }
   function select(id) {
     if (state.active && state.active !== id) remember();
@@ -207,7 +216,7 @@ export function mountTeaching(root, folder, materials, initialId, onExit) {
   function renderToolbar() {
     toolbar.replaceChildren();
     const item = current();
-    toolbar.hidden = item.kind !== 'pdf' && item.kind !== 'note';
+    toolbar.hidden = item.kind !== 'pdf' && item.kind !== 'note' && item.kind !== 'image';
     if (!toolbar.hidden) {
       const toolButton = (symbol, label, action, classes = '') => {
         const control = button('', action, `tool-button ${classes}`);
@@ -244,7 +253,7 @@ export function mountTeaching(root, folder, materials, initialId, onExit) {
       });
       sizeGroup.append(sizeSlider, sizeValue); toolbar.append(sizeGroup);
       toolbar.append(toolButton('✕', 'Clear page', () => modifyInk(inkKey(), 'clear', state), 'secondary-tool'));
-      if (item.kind === 'pdf') {
+      if (['pdf','note','image'].includes(item.kind)) {
         toolbar.append(el('span', 'tool-separator'));
         toolbar.append(toolButton('−', 'Zoom out', () => changeZoom(0.8)));
         toolbar.append(el('span', 'zoom-label', `${Math.round(state.zoom * 100)}%`));
@@ -256,7 +265,7 @@ export function mountTeaching(root, folder, materials, initialId, onExit) {
   function changeZoom(multiplier) {
     remember();
     state.zoom = Math.max(0.5, Math.min(3, state.zoom * multiplier));
-    materialView.set(state.active, { scroll: viewer.scrollTop, zoom: state.zoom });
+    materialView.set(state.active, { scroll: viewer.scrollTop, scrollLeft: viewer.scrollLeft, zoom: state.zoom });
     render();
   }
   function renderFooter() {
@@ -318,6 +327,7 @@ export function mountTeaching(root, folder, materials, initialId, onExit) {
       viewer.onscroll = () => { state.page = pageFromScroll(viewer, shells); remember(); };
       status.textContent = `${pdf.numPages} pages`;
       viewer.scrollTop = materialView.get(item.id)?.scroll || 0;
+      viewer.scrollLeft = materialView.get(item.id)?.scrollLeft || 0;
     } catch (error) {
       if (token !== generation) return;
       loading.remove();
@@ -328,6 +338,7 @@ export function mountTeaching(root, folder, materials, initialId, onExit) {
   }
   function renderNote(item) {
     const pad = el('div', 'note-pad');
+    pad.style.zoom = String(state.zoom);
     const page = el('article', 'note-page');
     const body = el('div', 'note-body');
     body.innerHTML = safeNote(item.content);
@@ -342,8 +353,50 @@ export function mountTeaching(root, folder, materials, initialId, onExit) {
       page.style.height = `${Math.max(950, body.scrollHeight + 90)}px`;
       attachInk(overlay, key, state);
       viewer.scrollTop = materialView.get(item.id)?.scroll || 0;
+      viewer.scrollLeft = materialView.get(item.id)?.scrollLeft || 0;
     });
     viewer.onscroll = remember;
+  }
+
+  function renderImage(item, token) {
+    const page = el('section', 'image-page');
+    const picture = el('img', 'image-render');
+    picture.alt = item.title;
+    picture.draggable = false;
+    const overlay = el('canvas');
+    page.append(picture, overlay);
+    viewer.append(page);
+    picture.addEventListener('load', () => {
+      if (token !== generation) return;
+      const naturalWidth = picture.naturalWidth || 1;
+      const naturalHeight = picture.naturalHeight || 1;
+      const baseWidth = Math.min(naturalWidth, Math.max(280, viewer.clientWidth - 44));
+      const width = baseWidth * state.zoom;
+      page.style.width = `${width}px`;
+      page.style.height = `${width * naturalHeight / naturalWidth}px`;
+      attachInk(overlay, `${item.id}:1`, state);
+      viewer.scrollTop = materialView.get(item.id)?.scroll || 0;
+      viewer.scrollLeft = materialView.get(item.id)?.scrollLeft || 0;
+    }, { once: true });
+    picture.addEventListener('error', () => {
+      if (token !== generation) return;
+      page.replaceWith(el('div', 'error-state', 'Could not load this picture. Check that the image URL is public.'));
+    }, { once: true });
+    picture.src = item.url;
+    viewer.onscroll = remember;
+  }
+
+  function renderAudio(item) {
+    const panel = el('section', 'audio-panel');
+    panel.append(el('div', 'audio-icon', '♫'), el('h2', '', item.title),
+      el('p', 'field-hint', 'Play or pause using the controls below.'));
+    const audio = el('audio', 'audio-player');
+    audio.controls = true;
+    audio.preload = 'metadata';
+    audio.src = item.url;
+    audio.setAttribute('aria-label', `Play ${item.title}`);
+    panel.append(audio);
+    viewer.append(panel);
   }
   function renderYouTube(item) {
     try {
@@ -376,8 +429,61 @@ export function mountTeaching(root, folder, materials, initialId, onExit) {
     const item = current();
     if (item.kind === 'pdf') renderPdf(item, token);
     else if (item.kind === 'note') renderNote(item);
+    else if (item.kind === 'image') renderImage(item, token);
+    else if (item.kind === 'audio') renderAudio(item);
     else if (item.kind === 'youtube') renderYouTube(item);
     else renderLink(item);
   }
+
+  // Two-finger gestures are applied to the material only, not the website.
+  let pinch = null;
+  const distance = (touches) => Math.hypot(
+    touches[0].clientX - touches[1].clientX,
+    touches[0].clientY - touches[1].clientY,
+  );
+  viewer.addEventListener('touchstart', (event) => {
+    if (event.touches.length !== 2 || !['pdf','note','image'].includes(current().kind)) return;
+    const target = viewer.querySelector('.pdf-pages, .note-pad, .image-page');
+    if (!target) return;
+    const rect = viewer.getBoundingClientRect();
+    const centerX = (event.touches[0].clientX + event.touches[1].clientX) / 2 - rect.left;
+    const centerY = (event.touches[0].clientY + event.touches[1].clientY) / 2 - rect.top;
+    pinch = {
+      target, initialDistance: Math.max(1, distance(event.touches)),
+      startZoom: state.zoom, nextZoom: state.zoom, centerX, centerY,
+      scrollTop: viewer.scrollTop, scrollLeft: viewer.scrollLeft,
+    };
+    state.pinching = true;
+    state.cancelActiveInk?.();
+  }, { passive: true });
+  viewer.addEventListener('touchmove', (event) => {
+    if (!pinch || event.touches.length < 2) return;
+    event.preventDefault();
+    const ratio = distance(event.touches) / pinch.initialDistance;
+    pinch.nextZoom = Math.max(0.5, Math.min(3, pinch.startZoom * ratio));
+    const factor = pinch.nextZoom / pinch.startZoom;
+    pinch.target.style.transformOrigin = 'center top';
+    pinch.target.style.transform = `scale(${factor})`;
+  }, { passive: false });
+  const endPinch = (event) => {
+    if (!pinch || event.touches.length > 1) return;
+    const gesture = pinch;
+    pinch = null;
+    state.pinching = false;
+    gesture.target.style.transform = '';
+    gesture.target.style.transformOrigin = '';
+    const next = gesture.nextZoom;
+    if (Math.abs(next - gesture.startZoom) < 0.01) return;
+    const factor = next / gesture.startZoom;
+    state.zoom = next;
+    materialView.set(state.active, {
+      zoom: next,
+      scroll: Math.max(0, (gesture.scrollTop + gesture.centerY) * factor - gesture.centerY),
+      scrollLeft: Math.max(0, (gesture.scrollLeft + gesture.centerX) * factor - gesture.centerX),
+    });
+    render();
+  };
+  viewer.addEventListener('touchend', endPinch, { passive: true });
+  viewer.addEventListener('touchcancel', endPinch, { passive: true });
   render();
 }
