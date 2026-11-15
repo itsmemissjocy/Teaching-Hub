@@ -11,6 +11,8 @@ export const META = {
   folder: { icon: 'folder', label: 'Folder' },
   note: { icon: 'file-text', label: 'Editable document' },
   pdf: { icon: 'file-up', label: 'PDF' },
+  image: { icon: 'image', label: 'Picture' },
+  audio: { icon: 'music', label: 'Audio recording' },
   youtube: { icon: 'play-square', label: 'YouTube' },
   link: { icon: 'external-link', label: 'Website' },
 };
