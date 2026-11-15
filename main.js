@@ -391,7 +391,32 @@ function showLogin() {
     if (event.key === 'Enter') submit.click();
   });
   dialog.append(formLine('Editing passcode', pinInput), feedback, submit,
-    el('p', 'field-hint', 'First-time setup: open Teaching Hub on a device where editing is already unlocked, choose Set / change PIN, then configure EDITOR_EMAIL in Vercel. No PIN is stored in the website source.'));
+    button('First-time setup or forgot PIN?', () => { overlay.remove(); showPinRecovery(); }, 'button quiet full'),
+    el('p', 'field-hint', 'For everyday editing, the PIN replaces email links. Configure EDITOR_EMAIL in Vercel once. The PIN itself is never saved in website code.'));
+}
+
+function showPinRecovery() {
+  const { dialog } = modal('Set up or recover your PIN');
+  dialog.append(el('p', 'modal-description',
+    'This is a one-time account recovery step, not your everyday login. Enter your approved teacher email to receive a secure reset link.'));
+  const email = el('input', 'text-field');
+  email.type = 'email'; email.autocomplete = 'email'; email.placeholder = 'Approved teacher email';
+  const feedback = el('p', 'save-status');
+  const submit = button('Send PIN setup / reset link', async () => {
+    if (!email.validity.valid) { feedback.textContent = 'Enter a valid email address.'; return; }
+    submit.disabled = true;
+    feedback.textContent = 'Sending…';
+    try {
+      await check(await supabase.auth.resetPasswordForEmail(email.value.trim(), {
+        redirectTo: `${location.origin}${location.pathname}`,
+      }));
+      feedback.textContent = 'Check your email once. Open the link on this device to set your new PIN.';
+    } catch (error) {
+      feedback.textContent = message(error);
+      submit.disabled = false;
+    }
+  }, 'button primary full');
+  dialog.append(formLine('Recovery email', email), feedback, submit);
 }
 
 function showPinSetup() {
@@ -685,7 +710,12 @@ function showMaterialEditor(folderId, existing = null) {
 
 if (configured) {
   supabase.auth.onAuthStateChange((event) => {
-    if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') window.setTimeout(initialize, 0);
+    if (event === 'PASSWORD_RECOVERY') {
+      window.setTimeout(async () => {
+        await initialize();
+        if (state.teacher) showPinSetup();
+      }, 0);
+    } else if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') window.setTimeout(initialize, 0);
   });
 }
 initialize();
