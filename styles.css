@@ -82,6 +82,11 @@ h1, h2, h3 { font-family: Manrope, 'DM Sans', sans-serif; letter-spacing: -.035e
 .material-heading .section-title { margin-right:auto; }
 .material-heading .muted { font-size:11px; }
 .material-list { display:grid; gap:8px; }
+.drag-handle { flex:none; user-select:none; cursor:grab; color:#829489; letter-spacing:-3px; padding:12px 6px 12px 3px; font-size:20px; line-height:1; border-radius:7px; }
+.drag-handle:hover { color:var(--green); background:var(--pastel-mint); }
+.drag-handle:active { cursor:grabbing; }
+.material-row.drag-over { border-color:#3f8e65; box-shadow:0 0 0 2px #bad9c1; background:#f1f8ee; }
+.material-row.is-dragging { opacity:.46; }
 .material-row, .trash-row { display:flex; align-items:center; gap:10px; min-height:76px; border:1px solid var(--line); background:var(--paper); border-radius:12px; padding:9px 10px 9px 14px; }
 .material-open { display:flex; align-items:center; flex:1; gap:17px; text-align:left; min-width:0; border:0; background:transparent; padding:0; color:var(--text); }
 .material-open:hover .material-name { color:var(--green); }
