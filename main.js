@@ -221,6 +221,7 @@ function renderFolder(main) {
       heroActions.append(menu([
         ['Rename folder', () => renameFolder(current)],
         ['Move folder', () => showMoveFolder(current)],
+        ['Duplicate lesson folder', () => duplicateLessonFolder(current)],
         [current.is_public ? 'Unpublish from classroom' : 'Publish to classroom', () => togglePublish(current)],
         ['Move to Recycle Bin', () => trashRow('folders', current), true],
       ]));
@@ -267,6 +268,7 @@ function renderFolder(main) {
       if (state.teacher) card.append(menu([
         ['Rename', () => renameFolder(folder)],
         ['Move', () => showMoveFolder(folder)],
+        ['Duplicate folder', () => duplicateLessonFolder(folder)],
         [folder.is_public ? 'Unpublish' : 'Publish', () => togglePublish(folder)],
         ['Move to Recycle Bin', () => trashRow('folders', folder), true],
       ]));
@@ -670,6 +672,54 @@ function reorder(items, index, direction) {
       await check(await supabase.from('materials').update({sort_order:a}).eq('id',other.id));
     }
   });
+}
+async function duplicateLessonFolder(source) {
+  if (!state.teacher) return;
+  const name = source.name.length > 113 ? source.name.slice(0, 113) : source.name;
+  if (!window.confirm(`Copy “${source.name}” and its subfolders/materials? The copy starts private so you can review it before publishing.`)) return;
+  let createdRoot = null;
+  await perform(async () => {
+    const copyBranch = async (folder, parentId, depth) => {
+      if (depth > 15) throw new Error('This folder hierarchy is too deep to duplicate safely.');
+      const siblingPosition = depth === 0
+        ? nextPosition(state.folders.filter((f) => f.parent_id === parentId))
+        : folder.sort_order;
+      const created = await check(await supabase.from('folders').insert({
+        owner_id: state.user.id,
+        parent_id: parentId,
+        name: depth === 0 ? `${name} (copy)` : folder.name,
+        sort_order: siblingPosition,
+        is_public: depth === 0 ? false : folder.is_public,
+      }).select('id').single());
+      if (depth === 0) createdRoot = created.id;
+      const originals = ordered(activeMaterials().filter((material) => material.folder_id === folder.id));
+      if (originals.length) {
+        await check(await supabase.from('materials').insert(originals.map((material) => ({
+          owner_id: state.user.id,
+          folder_id: created.id,
+          kind: material.kind,
+          title: material.title,
+          content: material.content || '',
+          url: material.url || '',
+          storage_path: material.storage_path || null,
+          sort_order: material.sort_order,
+        }))));
+      }
+      for (const child of children(folder.id)) {
+        await copyBranch(child, created.id, depth + 1);
+      }
+    };
+    try {
+      await copyBranch(source, source.parent_id, 0);
+    } catch (error) {
+      // Only undo the freshly-created copy, never the original.
+      if (createdRoot) {
+        try { await check(await supabase.from('folders').delete().eq('id', createdRoot)); }
+        catch { /* The user can remove the incomplete copy from the library. */ }
+      }
+      throw error;
+    }
+  }, 'Lesson folder duplicated privately. Review it before publishing.');
 }
 function duplicateMaterial(item) {
   perform(async () => {
