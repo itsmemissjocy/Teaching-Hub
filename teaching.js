@@ -165,18 +165,26 @@ export function mountTeaching(root, folder, materials, initialId, onExit) {
   let generation = 0;
   let observer = null;
   const shell = el('div', 'teaching-shell');
-  const top = el('header', 'teaching-header');
-  const title = el('span', 'teaching-title', folder.name);
+  const tabsWrap = el('nav', 'lesson-tabs');
+  tabsWrap.setAttribute('aria-label', 'Lesson materials and presentation controls');
+  const back = button('← Library', () => { ++generation; observer?.disconnect(); onExit(); }, 'lesson-tab-back');
+  back.title = 'Return to your library';
+  const folderLabel = el('span', 'lesson-folder-label', folder.name);
+  folderLabel.title = folder.name;
+  const tabList = el('div', 'lesson-tab-list');
+  tabList.setAttribute('role', 'tablist');
+  tabList.setAttribute('aria-label', 'Materials in this lesson');
   const status = el('span', 'teaching-status', '');
-  const fullscreen = button('⛶ Full screen', async () => {
+  status.setAttribute('role', 'status');
+  const fullscreen = button('⛶', async () => {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
       else if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
     } catch { status.textContent = 'Full-screen is unavailable in this browser.'; }
-  }, 'button quiet');
-  top.append(button('← Library', () => { ++generation; observer?.disconnect(); onExit(); }, 'button quiet'), title, status, fullscreen);
-  const tabsWrap = el('nav', 'lesson-tabs');
-  tabsWrap.setAttribute('aria-label', 'Lesson materials');
+  }, 'lesson-tab-fullscreen');
+  fullscreen.title = 'Toggle full screen';
+  fullscreen.setAttribute('aria-label', 'Toggle full screen');
+  tabsWrap.append(back, folderLabel, tabList, status, fullscreen);
   const toolbar = el('div', 'teaching-tools');
   toolbar.setAttribute('role', 'toolbar');
   toolbar.setAttribute('aria-label', 'Annotation tools');
@@ -185,7 +193,7 @@ export function mountTeaching(root, folder, materials, initialId, onExit) {
   const workspace = el('div', 'teaching-workspace');
   workspace.append(toolbar, viewer);
   const footer = el('footer', 'lesson-footer');
-  shell.append(top, tabsWrap, workspace, footer);
+  shell.append(tabsWrap, workspace, footer);
   root.replaceChildren(shell);
 
   function current() { return materials.find((item) => item.id === state.active) || materials[0]; }
@@ -204,13 +212,15 @@ export function mountTeaching(root, folder, materials, initialId, onExit) {
     if (idx + delta >= 0 && idx + delta < materials.length) select(materials[idx + delta].id);
   }
   function renderTabs() {
-    tabsWrap.replaceChildren();
+    tabList.replaceChildren();
     materials.forEach((item, i) => {
       const tab = button(`${i + 1}. ${item.title}`, () => select(item.id), `lesson-tab ${item.id === state.active ? 'selected' : ''}`);
       tab.title = `${META[item.kind]?.label || ''} · ${item.title}`;
-      tabsWrap.append(tab);
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-selected", String(item.id === state.active));
+      tabList.append(tab);
     });
-    tabsWrap.querySelector('.selected')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    tabList.querySelector('.selected')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
   function inkKey() { return lastInkKey?.startsWith(`${state.active}:`) ? lastInkKey : `${state.active}:${state.page}`; }
   function renderToolbar() {
