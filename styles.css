@@ -15,6 +15,10 @@
   --line: #dfe6dc;
   --paper: #fffefb;
   --danger: #b14640;
+  --pastel-mint: #e7f3ed;
+  --pastel-lavender: #f0eafb;
+  --pastel-peach: #fff1e8;
+  --pastel-yellow: #fff5d8;
 }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; }
@@ -61,8 +65,8 @@ h1, h2, h3 { font-family: Manrope, 'DM Sans', sans-serif; letter-spacing: -.035e
 .folder-hero { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; margin-bottom:28px; }
 .folder-hero h1 { font-size:clamp(25px,3vw,36px); line-height:1.23; margin-bottom:10px; max-width:680px; }
 .hero-actions { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; align-items:center; min-width:190px; }
-.search-row { display:flex; align-items:center; gap:18px; margin:24px 0 32px; }
-.search-input { background:var(--paper); color:var(--text); border:1px solid var(--line); height:48px; border-radius:12px; padding:0 16px; width:min(430px,100%); font-size:14px; }
+.search-row { display:flex; align-items:center; gap:9px; margin:24px 0 28px; }
+.search-input { background:var(--paper); color:var(--text); border:1px solid var(--line); height:48px; border-radius:12px; padding:0 16px; flex:1; max-width:430px; min-width:0; font-size:14px; }
 .publication-label { color:#877c5f; background:#f4eedf; border-radius:20px; padding:7px 10px; font-size:11px; font-weight:700; }
 .publication-label.published { color:#396e58; background:#e3eee2; }
 .section-title { font-size:16px; font-weight:800; margin:12px 0 16px; }
@@ -104,6 +108,18 @@ h1, h2, h3 { font-family: Manrope, 'DM Sans', sans-serif; letter-spacing: -.035e
 .empty-state h3 { color:var(--text); margin:10px 0; font-size:18px; }
 .empty-state p { font-size:13px; }
 .empty-icon { font-size:36px; color:#7aa68c; }
+.quick-section { margin-bottom:27px; }
+.quick-section .section-title { margin-bottom:12px; }
+.quick-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(225px,1fr)); gap:10px; }
+.quick-card { width:100%; border:1px solid #dfe7df; border-radius:14px; background:var(--paper); padding:15px; display:flex; align-items:center; text-align:left; gap:12px; min-height:78px; color:var(--text); transition:border-color .15s ease,transform .15s ease,box-shadow .15s ease; }
+.quick-card:hover { border-color:#b4cdbc; box-shadow:0 6px 17px #284a3012; transform:translateY(-1px); }
+.quick-icon { background:var(--pastel-lavender); color:#6b5d8c; min-width:43px; width:43px; height:43px; border-radius:12px; display:grid; place-items:center; font-size:21px; }
+.quick-copy { display:grid; flex:1; min-width:0; gap:3px; }
+.quick-copy strong { font-size:13px; overflow-wrap:anywhere; }
+.quick-copy small { font-size:11px; color:var(--muted); overflow-wrap:anywhere; }
+.quick-chevron { color:#8a9b90; font-size:24px; }
+.search-main { display:block; font-weight:800; margin-bottom:5px; }
+.search-context { display:block; font-size:11px; color:var(--muted); line-height:1.5; }
 .search-result { display:block; width:100%; text-align:left; padding:20px; border:1px solid var(--line); background:var(--paper); border-radius:12px; font-size:14px; color:var(--text); }
 .search-result:hover { background:var(--green-light); }
 .trash-row { justify-content:flex-end; }
@@ -119,6 +135,9 @@ h1, h2, h3 { font-family: Manrope, 'DM Sans', sans-serif; letter-spacing: -.035e
 .form-field { display:grid; gap:7px; font-size:12px; color:#52695a; font-weight:800; margin:15px 0; }
 .text-field { border:1px solid #d2dcd0; background:#fff; border-radius:10px; height:44px; padding:0 12px; width:100%; color:#273a2f; font-size:14px; }
 .file-input { padding:12px; border:1px dashed #aebfad; border-radius:10px; background:#f6f8f4; }
+.draft-prompt:not(:empty) { margin:12px 0 2px; background:var(--pastel-yellow); border:1px solid #ebdcae; padding:10px 13px; border-radius:10px; }
+.draft-prompt .field-hint { margin:0 0 8px; }
+.draft-prompt .button { min-height:38px; padding:8px 12px; }
 .format-toolbar { display:flex; flex-wrap:wrap; gap:6px; background:#f0f4ee; padding:8px; border-radius:10px 10px 0 0; border:1px solid #d4dfd3; border-bottom:0; margin-top:10px; }
 .format-button { border:1px solid transparent; background:#fff; border-radius:6px; min-width:37px; height:35px; padding:0 9px; font-weight:700; }
 .rich-editor { min-height:220px; max-height:420px; overflow:auto; background:white; border:1px solid #d4dfd3; border-radius:0 0 10px 10px; padding:20px; line-height:1.7; font-weight:400; font-size:15px; }
@@ -142,6 +161,11 @@ h1, h2, h3 { font-family: Manrope, 'DM Sans', sans-serif; letter-spacing: -.035e
 .lesson-tab.selected { background:#fffefa; color:var(--green-dark); box-shadow:inset 0 3px var(--green); }
 .teaching-workspace { display:flex; flex:1; min-height:0; min-width:0; }
 .teaching-tools { display:flex; flex-direction:column; align-items:center; gap:6px; width:98px; background:#fffefa; border-right:1px solid var(--line); padding:9px 5px; overflow-y:auto; overflow-x:hidden; flex:none; scrollbar-width:thin; }
+.teaching-tools.collapsed { width:44px; padding:8px 3px; }
+.teaching-tools .tool-collapse { width:84px; flex:none; min-height:36px; border:1px solid #d2e0d5; border-radius:9px; color:#426b52; background:#eef5ed; font-size:11px; font-weight:800; }
+.teaching-tools .tool-collapse:hover { background:#dcebdc; }
+.teaching-tools.collapsed .tool-collapse { width:34px; min-height:46px; padding:2px; writing-mode:vertical-rl; }
+.teaching-tools .tool-button:focus-visible, .quick-card:focus-visible { outline:3px solid #8baea0; outline-offset:2px; }
 .teaching-tools[hidden] { display:none; }
 .tool-button { flex:none; background:transparent; color:#5c7264; font-size:12px; font-weight:800; border:1px solid transparent; border-radius:8px; min-height:48px; padding:0 13px; white-space:nowrap; }
 .teaching-tools .tool-button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; width:84px; min-height:60px; padding:5px 3px; white-space:normal; }
@@ -203,6 +227,9 @@ h1, h2, h3 { font-family: Manrope, 'DM Sans', sans-serif; letter-spacing: -.035e
   .note-pad { padding:0; }
   .lesson-tab { max-width:180px; }
   .teaching-tools { width:80px; padding:8px 4px; }
+  .teaching-tools .tool-collapse { width:70px; }
+  .teaching-tools.collapsed { width:44px; }
+  .teaching-tools.collapsed .tool-collapse { width:34px; }
   .teaching-tools .tool-button { width:70px; min-height:56px; }
   .teaching-tools .tool-symbol { font-size:21px; }
 }
