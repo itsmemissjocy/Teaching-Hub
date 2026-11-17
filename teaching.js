@@ -161,7 +161,7 @@ function pageFromScroll(viewer, shells) {
 
 export function mountTeaching(root, folder, materials, initialId, onExit) {
   if (!materials.length) return;
-  const state = { tool: 'hand', color: '#c24b43', width: 4, canvases: new Map(), active: initialId || materials[0].id, zoom: 1, page: 1 };
+  const state = { tool: 'hand', color: '#c24b43', width: 4, canvases: new Map(), active: initialId || materials[0].id, zoom: 1, page: 1, toolsCollapsed: false, pinching: false };
   let generation = 0;
   let observer = null;
   const shell = el('div', 'teaching-shell');
@@ -216,8 +216,22 @@ export function mountTeaching(root, folder, materials, initialId, onExit) {
   function renderToolbar() {
     toolbar.replaceChildren();
     const item = current();
-    toolbar.hidden = item.kind !== 'pdf' && item.kind !== 'note' && item.kind !== 'image';
+    toolbar.hidden = !['pdf', 'note', 'image'].includes(item.kind);
+    toolbar.classList.toggle('collapsed', state.toolsCollapsed && !toolbar.hidden);
     if (!toolbar.hidden) {
+      const toggle = button(state.toolsCollapsed ? '▶' : '◀ Hide', () => {
+        state.toolsCollapsed = !state.toolsCollapsed;
+        if (state.toolsCollapsed) {
+          // Avoid drawing accidentally while the tools are tucked away.
+          state.tool = 'hand';
+          state.canvases.forEach((canvas) => { canvas.style.pointerEvents = 'none'; });
+        }
+        renderToolbar();
+      }, 'tool-collapse');
+      toggle.title = state.toolsCollapsed ? 'Show annotation toolbar' : 'Hide annotation toolbar';
+      toggle.setAttribute('aria-label', toggle.title);
+      toolbar.append(toggle);
+      if (state.toolsCollapsed) return;
       const toolButton = (symbol, label, action, classes = '') => {
         const control = button('', action, `tool-button ${classes}`);
         control.append(el('span', 'tool-symbol', symbol), el('span', 'tool-caption', label));
@@ -252,20 +266,47 @@ export function mountTeaching(root, folder, materials, initialId, onExit) {
         sizeValue.textContent = `${state.width}px`;
       });
       sizeGroup.append(sizeSlider, sizeValue); toolbar.append(sizeGroup);
-      toolbar.append(toolButton('✕', 'Clear page', () => modifyInk(inkKey(), 'clear', state), 'secondary-tool'));
+      toolbar.append(toolButton('✕', 'Clear page', () => modifyInk(`${state.active}:${state.page}`, 'clear', state), 'secondary-tool'));
       if (['pdf','note','image'].includes(item.kind)) {
         toolbar.append(el('span', 'tool-separator'));
         toolbar.append(toolButton('−', 'Zoom out', () => changeZoom(0.8)));
         toolbar.append(el('span', 'zoom-label', `${Math.round(state.zoom * 100)}%`));
         toolbar.append(toolButton('+', 'Zoom in', () => changeZoom(1.25)));
-        toolbar.append(toolButton('↔', 'Fit width', () => { state.zoom = 1; render(); }, 'secondary-tool'));
+        toolbar.append(toolButton('↔', 'Fit width', () => fitMaterial('width'), 'secondary-tool'));
+        toolbar.append(toolButton('▣', 'Fit page', () => fitMaterial('page'), 'secondary-tool'));
+        toolbar.append(toolButton('100', 'Reset', () => fitMaterial('reset'), 'secondary-tool'));
       }
     }
   }
+  function applyZoom(value, focusX = viewer.clientWidth / 2, focusY = viewer.clientHeight / 2) {
+    const previous = state.zoom;
+    const next = Math.max(0.5, Math.min(3, value));
+    if (Math.abs(next - previous) < 0.005) return;
+    const ratio = next / previous;
+    const scroll = Math.max(0, (viewer.scrollTop + focusY) * ratio - focusY);
+    const scrollLeft = Math.max(0, (viewer.scrollLeft + focusX) * ratio - focusX);
+    state.zoom = next;
+    materialView.set(state.active, { scroll, scrollLeft, zoom: next });
+    render();
+  }
   function changeZoom(multiplier) {
-    remember();
-    state.zoom = Math.max(0.5, Math.min(3, state.zoom * multiplier));
-    materialView.set(state.active, { scroll: viewer.scrollTop, scrollLeft: viewer.scrollLeft, zoom: state.zoom });
+    applyZoom(state.zoom * multiplier);
+  }
+  function fitMaterial(mode) {
+    if (mode === 'reset') return applyZoom(1);
+    const page = viewer.querySelector('.pdf-page, .note-page, .image-page');
+    if (!page) return;
+    // Notes use CSS zoom on their parent; offsetWidth still reports the
+    // unzoomed 820-pixel page size. PDF/image dimensions include zoom.
+    const isNote = current().kind === 'note';
+    const baseWidth = isNote ? page.offsetWidth : page.offsetWidth / state.zoom;
+    const baseHeight = isNote ? page.offsetHeight : page.offsetHeight / state.zoom;
+    if (!baseWidth || !baseHeight) return;
+    const widthZoom = (viewer.clientWidth - 42) / baseWidth;
+    const pageZoom = Math.min(widthZoom, (viewer.clientHeight - 42) / baseHeight);
+    const zoom = mode === 'page' ? pageZoom : widthZoom;
+    state.zoom = Math.max(0.5, Math.min(3, zoom));
+    materialView.set(state.active, { scroll: 0, scrollLeft: 0, zoom: state.zoom });
     render();
   }
   function renderFooter() {
@@ -434,6 +475,31 @@ export function mountTeaching(root, folder, materials, initialId, onExit) {
     else if (item.kind === 'youtube') renderYouTube(item);
     else renderLink(item);
   }
+
+
+  // Classroom-only shortcuts: no write access or login is required.
+  shell.tabIndex = -1;
+  shell.addEventListener('keydown', (event) => {
+    const tag = document.activeElement?.tagName;
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+      event.preventDefault();
+      modifyInk(inkKey(), event.shiftKey ? 'redo' : 'undo', state);
+    } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+      event.preventDefault();
+      modifyInk(inkKey(), 'redo', state);
+    } else if (event.key === 'Escape' && state.tool !== 'hand') {
+      state.tool = 'hand';
+      state.canvases.forEach((canvas) => { canvas.style.pointerEvents = 'none'; });
+      renderToolbar();
+    } else if (event.altKey && event.key === 'ArrowRight') {
+      event.preventDefault();
+      nav(1);
+    } else if (event.altKey && event.key === 'ArrowLeft') {
+      event.preventDefault();
+      nav(-1);
+    }
+  });
 
   // Two-finger gestures are applied to the material only, not the website.
   let pinch = null;
