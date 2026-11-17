@@ -288,6 +288,7 @@ function renderFolder(main) {
       main.append(empty);
     } else {
       const list = el('div', 'material-list');
+      const itemsForOrder = materials;
       materials.forEach((material, index) => {
         const row = el('div', 'material-row');
         const open = button('', () => startLesson(current, material.id), 'material-open');
@@ -297,6 +298,32 @@ function renderFolder(main) {
         open.append(text);
         row.append(open);
         if (state.teacher) {
+          const handle = el('span', 'drag-handle', '⋮⋮');
+          handle.draggable = true;
+          handle.title = 'Drag to change the teaching order (or use the arrow buttons)';
+          handle.setAttribute('aria-label', handle.title);
+          handle.addEventListener('dragstart', (event) => {
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('application/x-teachinghub-material-order', String(index));
+            row.classList.add('is-dragging');
+          });
+          handle.addEventListener('dragend', () => row.classList.remove('is-dragging'));
+          row.addEventListener('dragover', (event) => {
+            if (!Array.from(event.dataTransfer.types).includes('application/x-teachinghub-material-order')) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            row.classList.add('drag-over');
+          });
+          row.addEventListener('dragleave', (event) => {
+            if (!row.contains(event.relatedTarget)) row.classList.remove('drag-over');
+          });
+          row.addEventListener('drop', (event) => {
+            event.preventDefault();
+            row.classList.remove('drag-over');
+            const from = Number(event.dataTransfer.getData('application/x-teachinghub-material-order'));
+            if (Number.isInteger(from)) moveMaterial(itemsForOrder, from, index);
+          });
+          row.prepend(handle);
           const order = el('div', 'reorder-actions');
           const up = button('↑', () => reorder(materials, index, -1), 'mini-button'); up.disabled = index === 0; up.title = 'Move up';
           const down = button('↓', () => reorder(materials, index, 1), 'mini-button'); down.disabled = index === materials.length - 1; down.title = 'Move down';
@@ -610,6 +637,23 @@ function startLesson(folder, selectedId) {
   });
 }
 
+function moveMaterial(items, sourceIndex, targetIndex) {
+  if (!state.teacher || sourceIndex === targetIndex ||
+      sourceIndex < 0 || sourceIndex >= items.length ||
+      targetIndex < 0 || targetIndex >= items.length) return;
+  const arranged = [...items];
+  const [moved] = arranged.splice(sourceIndex, 1);
+  arranged.splice(targetIndex, 0, moved);
+  perform(async () => {
+    for (let i = 0; i < arranged.length; i++) {
+      const expectedOrder = (i + 1) * 10;
+      if (arranged[i].sort_order !== expectedOrder) {
+        await check(await supabase.from('materials')
+          .update({ sort_order: expectedOrder }).eq('id', arranged[i].id));
+      }
+    }
+  }, 'Teaching order updated');
+}
 function reorder(items, index, direction) {
   const other = items[index + direction];
   if (!other) return;
