@@ -390,9 +390,22 @@ export function mountTeaching(root, folder, materials, initialId, onExit) {
     viewer.append(pad);
     const key = `${item.id}:1`;
     state.page = 1;
+    let inkReady = false;
+    const resizeDocument = () => {
+      if (!page.isConnected) return;
+      const measured = Math.max(950, body.scrollHeight + 130);
+      if (Math.abs(page.offsetHeight - measured) > 2) page.style.height = `${measured}px`;
+      // Repaint the existing normalized strokes to match the new canvas size.
+      if (inkReady) draw(overlay, key);
+    };
+    for (const image of body.querySelectorAll('img')) {
+      image.addEventListener('load', () => requestAnimationFrame(resizeDocument));
+      image.addEventListener('error', () => requestAnimationFrame(resizeDocument));
+    }
     requestAnimationFrame(() => {
-      page.style.height = `${Math.max(950, body.scrollHeight + 90)}px`;
+      resizeDocument();
       attachInk(overlay, key, state);
+      inkReady = true;
       viewer.scrollTop = materialView.get(item.id)?.scroll || 0;
       viewer.scrollLeft = materialView.get(item.id)?.scrollLeft || 0;
     });
