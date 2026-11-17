@@ -6,6 +6,7 @@ import {
 } from './lib.js';
 import { mountTeaching } from './teaching.js';
 import { exportWord, printDocument } from './export.js';
+import { createDocumentEditor } from './editor.js';
 
 const root = document.getElementById('app');
 const state = {
@@ -744,72 +745,72 @@ function showMaterialEditor(folderId, existing = null) {
   const title = el('input','text-field'); title.type='text'; title.placeholder='e.g. Nota Isi Penting'; title.value=existing?.title || '';
   const dynamic = el('div','dynamic-fields');
   const feedback = el('p','save-status','Not saved yet');
-  const richEditor = el('div', 'rich-editor');
-  richEditor.contentEditable = 'true';
-  richEditor.setAttribute('role','textbox'); richEditor.setAttribute('aria-label','Editable document content');
-  richEditor.setAttribute('aria-multiline','true');
-  richEditor.innerHTML = safeNote(existing?.content || '<p></p>');
-  // Drafts remain in this tab's session only; no unsaved content is uploaded.
-  const draftKey = `teaching-hub-note-draft:${state.user.id}:${existing?.id || folderId + ':new'}`;
+  // Rich text stays in the existing materials.content HTML field.
+  // New inline pictures are uploaded only by approved editors.
+  const newDocumentImages = new Set();
+  const uploadDocumentImage = async (file) => {
+    const suffix = file.name.split('.').pop()?.toLowerCase();
+    const types = {
+      jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+      gif: 'image/gif', webp: 'image/webp',
+    };
+    if (!types[suffix] || file.size > 10 * 1024 * 1024 ||
+        (file.type && file.type !== types[suffix])) {
+      throw new Error('Use a JPG, PNG, WebP or GIF image smaller than 10 MB.');
+    }
+    const path = state.user.id + '/' + crypto.randomUUID() + '.' + suffix;
+    await check(await supabase.storage.from('teaching-media')
+      .upload(path, file, { contentType: types[suffix], upsert: false }));
+    newDocumentImages.add(path);
+    return supabase.storage.from('teaching-media').getPublicUrl(path).data.publicUrl;
+  };
+  const discardNewImages = () => {
+    if (!newDocumentImages.size) return;
+    const images = [...newDocumentImages];
+    newDocumentImages.clear();
+    Promise.all(images.map((path) =>
+      supabase.storage.from('teaching-media').remove([path])
+    )).catch((error) => console.warn('Unsaved image cleanup', error));
+  };
+  let richEditor = null;
+  const docEditor = createDocumentEditor({
+    initialHTML: existing?.content || '<p></p>',
+    onUploadImage: uploadDocumentImage,
+    onChange: () => richEditor?.dispatchEvent(new Event('input', { bubbles: true })),
+    onNotice: (notice, failed = false) => {
+      feedback.textContent = notice;
+      if (failed) toast(notice, true);
+    },
+  });
+  richEditor = docEditor.element;
+  const initialDocumentHTML = docEditor.getHTML();
+  const draftKey = 'teaching-hub-note-draft:' + state.user.id + ':' + (existing?.id || folderId + ':new');
   let previousDraft = null;
   try { previousDraft = JSON.parse(sessionStorage.getItem(draftKey) || 'null'); }
-  catch { /* Storage can be unavailable in private browser modes. */ }
+  catch { /* Draft recovery may be unavailable in private browsing. */ }
   const draftPrompt = el('div', 'draft-prompt');
   if (previousDraft?.kind === 'note' &&
-      (previousDraft.html !== richEditor.innerHTML || previousDraft.title !== title.value)) {
+      (previousDraft.html !== initialDocumentHTML || previousDraft.title !== title.value)) {
     const restore = button('↶ Restore unsaved document draft', () => {
       title.value = previousDraft.title || '';
-      richEditor.innerHTML = safeNote(previousDraft.html || '<p></p>');
+      docEditor.setHTML(previousDraft.html || '<p></p>');
       richEditor.dispatchEvent(new Event('input', { bubbles: true }));
-      draftPrompt.replaceChildren(el('span', 'field-hint', 'Draft restored. Save the document to keep these changes online.'));
+      draftPrompt.replaceChildren(el('span', 'field-hint',
+        'Draft restored. Save the document to keep these changes online.'));
     }, 'button outline');
-    draftPrompt.append(el('p', 'field-hint', 'Unsaved text from this browser session was found.'), restore);
+    draftPrompt.append(el('p', 'field-hint',
+      'An unsaved document draft from this browser session was found.'), restore);
   }
   const urlInput = el('input','text-field'); urlInput.type='url'; urlInput.placeholder='https://'; urlInput.value=existing?.url || '';
   const fileInput = el('input','file-input'); fileInput.type='file'; fileInput.accept='application/pdf,.pdf';
   const mediaInput = el('input','file-input'); mediaInput.type='file';
-  const format = el('div','format-toolbar');
-  format.setAttribute('role', 'toolbar');
-  format.setAttribute('aria-label', 'Document formatting');
-  const runEditorCommand = (command) => {
-    richEditor.focus();
-    const changed = document.execCommand(command, false, command === 'formatBlock' ? 'h2' : null);
-    if (!changed && command === 'indent') document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;');
-    richEditor.dispatchEvent(new Event('input', { bubbles: true }));
-  };
-  [
-    ['bold','B','Bold'],['italic','I','Italic'],['underline','U','Underline'],
-    ['insertUnorderedList','• List','Bulleted list'],['insertOrderedList','1. List','Numbered list'],
-    ['formatBlock','Heading','Heading'],
-    ['justifyLeft','⇤ Left','Align left'],['justifyCenter','≡ Centre','Align centre'],
-    ['justifyRight','Right ⇥','Align right'],['justifyFull','☰ Justify','Justify text'],
-    ['outdent','⇤ Outdent','Decrease indentation (Shift+Tab)'],
-    ['indent','Indent ⇥','Increase indentation (Tab)'],
-  ].forEach(([command,label,description]) => {
-    const control = button(label, () => {
-      runEditorCommand(command);
-    }, 'format-button');
-    control.title = description;
-    control.setAttribute('aria-label', description);
-    control.addEventListener('pointerdown', (event) => event.preventDefault());
-    format.append(control);
-  });
-  richEditor.addEventListener('keydown', (event) => {
-    if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey) return;
-    event.preventDefault();
-    runEditorCommand(event.shiftKey ? 'outdent' : 'indent');
-  });
-  richEditor.addEventListener('paste',(event) => {
-    event.preventDefault();
-    document.execCommand('insertText',false,event.clipboardData.getData('text/plain'));
-  });
   const exportActions = el('div', 'document-export-actions');
   exportActions.append(
     button('Download Word (.docx)', () => {
-      exportWord(title.value.trim() || 'Untitled document', richEditor.innerHTML).catch(fail);
+      exportWord(title.value.trim() || 'Untitled document', docEditor.getHTML()).catch(fail);
     }, 'button quiet'),
     button('Print / Save PDF', () => {
-      try { printDocument(title.value.trim() || 'Untitled document', richEditor.innerHTML); }
+      try { printDocument(title.value.trim() || 'Untitled document', docEditor.getHTML()); }
       catch (error) { fail(error); }
     }, 'button quiet'),
   );
@@ -817,7 +818,7 @@ function showMaterialEditor(folderId, existing = null) {
     dynamic.replaceChildren();
     if (kind.value === 'note') dynamic.append(
       el('p', 'field-hint', 'Paste or type here. Use Tab / Shift+Tab to indent or outdent paragraphs. Save material keeps the document online; exporting downloads a separate copy.'),
-      format,richEditor,draftPrompt,exportActions,
+      richEditor,draftPrompt,exportActions,
     );
     else if (kind.value === 'pdf') {
       dynamic.append(formLine('Upload a PDF (recommended; max 25 MB)',fileInput));
@@ -838,7 +839,7 @@ function showMaterialEditor(folderId, existing = null) {
     if (kind.value !== 'note') return;
     try {
       sessionStorage.setItem(draftKey, JSON.stringify({
-        kind: 'note', title: title.value, html: safeNote(richEditor.innerHTML),
+        kind: 'note', title: title.value, html: docEditor.getHTML(),
       }));
     } catch { /* Session draft storage is a convenience, not the primary save. */ }
   };
@@ -859,6 +860,8 @@ function showMaterialEditor(folderId, existing = null) {
     window.clearTimeout(draftTimer);
     window.removeEventListener('beforeunload', beforeUnload);
     try { sessionStorage.removeItem(draftKey); } catch {}
+    docEditor.destroy();
+    discardNewImages();
     overlay.remove();
   };
   close.onclick = dismiss;
@@ -872,7 +875,7 @@ function showMaterialEditor(folderId, existing = null) {
       const data = {
         kind:kind.value, title:title.value.trim(),
         folder_id:folderId, owner_id:state.user.id,
-        content:kind.value === 'note' ? safeNote(richEditor.innerHTML) : '',
+        content:kind.value === 'note' ? docEditor.getHTML() : '',
         url:'', storage_path: existing?.storage_path || null,
       };
       if (kind.value === 'youtube') { youtubeId(urlInput.value); data.url=safeHttpUrl(urlInput.value); }
@@ -917,6 +920,9 @@ function showMaterialEditor(folderId, existing = null) {
         ...data, sort_order:nextPosition(state.materials.filter((m) => m.folder_id === folderId)),
       }));
       dirty = false;
+      if (kind.value !== 'note') discardNewImages();
+      newDocumentImages.clear();
+      docEditor.destroy();
       window.clearTimeout(draftTimer);
       window.removeEventListener('beforeunload', beforeUnload);
       try { sessionStorage.removeItem(draftKey); } catch {}
