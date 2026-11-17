@@ -32,31 +32,83 @@ export function button(label, handler, className = 'button') {
 }
 
 export function safeNote(html = '') {
-  // Keep only the text alignment and indentation needed by our document editor.
-  // DOMPurify deliberately does not sanitize CSS itself, so we strip every
-  // incoming style from an inert fragment before inserting it into the page.
-  const fragment = DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['p','div','br','strong','b','em','i','u','h1','h2','h3','ul','ol','li','blockquote'],
-    ALLOWED_ATTR: ['style', 'align'],
+  // Convert both legacy Teaching Hub notes and new editor markup to safe HTML.
+  // Never trust HTML from a pasted document, URL or saved database field.
+  const fragment = DOMPurify.sanitize(String(html || ''), {
+    ALLOWED_TAGS: [
+      'p','div','br','span','strong','b','em','i','u','s','strike','h1','h2','h3',
+      'ul','ol','li','blockquote','table','thead','tbody','tfoot','tr','td','th',
+      'img','a','hr',
+    ],
+    ALLOWED_ATTR: [
+      'style','align','src','alt','title','href','colspan','rowspan',
+    ],
     RETURN_DOM_FRAGMENT: true,
   });
-  const blockTags = new Set(['P','DIV','H1','H2','H3','UL','OL','LI','BLOCKQUOTE']);
-  for (const node of fragment.querySelectorAll('*')) {
+  const blocks = new Set([
+    'P','DIV','H1','H2','H3','UL','OL','LI','BLOCKQUOTE','TD','TH',
+  ]);
+  const safeLength = (value, max = 240) => {
+    const match = /^([0-9]+(?:\.[0-9]+)?)(px|pt|em)$/i.exec((value || '').trim());
+    if (!match) return null;
+    const unit = match[2].toLowerCase();
+    const number = Number(match[1]) * (unit === 'pt' ? 4/3 : unit === 'em' ? 16 : 1);
+    return Number.isFinite(number) ? Math.min(max, Math.round(number)) + 'px' : null;
+  };
+  const safeFamily = (value) => {
+    const text = (value || '').toLowerCase();
+    if (text.includes('century gothic')) return '"Century Gothic", Arial, sans-serif';
+    if (text.includes('times new roman')) return '"Times New Roman", Times, serif';
+    if (text.startsWith('georgia')) return 'Georgia, serif';
+    if (text.startsWith('arial')) return 'Arial, Helvetica, sans-serif';
+    return '';
+  };
+  for (const node of [...fragment.querySelectorAll('*')]) {
+    const tag = node.tagName;
+    if (tag === 'IMG' || tag === 'A') {
+      const field = tag === 'IMG' ? 'src' : 'href';
+      try {
+        const url = new URL(node.getAttribute(field) || '');
+        if (url.protocol !== 'https:') throw new Error('Unsupported URL scheme.');
+        node.setAttribute(field, url.href);
+      } catch {
+        if (tag === 'IMG') { node.remove(); continue; }
+        node.removeAttribute('href');
+      }
+      if (tag === 'IMG') {
+        node.setAttribute('loading', 'lazy');
+      } else if (node.hasAttribute('href')) {
+        node.setAttribute('rel', 'noopener noreferrer');
+      }
+    }
+    if (tag === 'TD' || tag === 'TH') {
+      for (const attr of ['colspan','rowspan']) {
+        const value = Number(node.getAttribute(attr));
+        if (!Number.isInteger(value) || value < 1 || value > 20) node.removeAttribute(attr);
+      }
+    }
     const alignment = (node.style.textAlign || node.getAttribute('align') || '').toLowerCase().trim();
-    const marginLeft = node.style.marginLeft;
-    const textIndent = node.style.textIndent;
+    const margin = node.style.marginLeft;
+    const indent = node.style.textIndent;
+    const fontFamily = node.style.fontFamily;
+    const fontSize = node.style.fontSize;
+    const color = node.style.color;
     node.removeAttribute('style');
     node.removeAttribute('align');
-    if (!blockTags.has(node.tagName)) continue;
-    if (['left','center','right','justify'].includes(alignment)) node.style.textAlign = alignment;
-    const safeLength = (value) => {
-      const match = /^([0-9]+(?:\.[0-9]+)?)(px|pt|em)$/i.exec(value.trim());
-      if (!match) return null;
-      const px = Number(match[1]) * (match[2].toLowerCase() === 'pt' ? 4 / 3 : match[2].toLowerCase() === 'em' ? 16 : 1);
-      return `${Math.min(240, Math.round(px))}px`;
-    };
-    if (safeLength(marginLeft)) node.style.marginLeft = safeLength(marginLeft);
-    if (safeLength(textIndent)) node.style.textIndent = safeLength(textIndent);
+    if (blocks.has(tag)) {
+      if (['left','right','center','justify'].includes(alignment)) node.style.textAlign = alignment;
+      const marginPx = safeLength(margin);
+      const indentPx = safeLength(indent);
+      if (marginPx) node.style.marginLeft = marginPx;
+      if (indentPx) node.style.textIndent = indentPx;
+    }
+    if (tag === 'SPAN') {
+      if (safeFamily(fontFamily)) node.style.fontFamily = safeFamily(fontFamily);
+      const size = safeLength(fontSize, 64);
+      if (size && parseInt(size, 10) >= 8) node.style.fontSize = size;
+      // Keep a very small, explicit palette rather than arbitrary pasted CSS.
+      if (/^#[0-9a-f]{6}$/i.test(color)) node.style.color = color;
+    }
   }
   const container = document.createElement('div');
   container.append(fragment);
