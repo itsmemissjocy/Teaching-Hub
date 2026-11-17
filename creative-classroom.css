@@ -1,0 +1,452 @@
+/* Creative Classroom — polished teacher workspace.
+   Visual-only layer; leaves lesson data, document formatting and ink behavior intact. */
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Nunito:wght@400;500;600;700;800;900&display=swap');
+
+:root {
+  font-family: 'Nunito', 'Century Gothic', 'Trebuchet MS', sans-serif;
+  color: #24354c;
+  background: #fffaf5;
+  --green: #168f88;
+  --green-dark: #116f70;
+  --green-light: #e5f7f2;
+  --text: #24354c;
+  --muted: #69778b;
+  --line: #e4e4e7;
+  --paper: #ffffff;
+  --danger: #bb4a52;
+  --pastel-mint: #ddf5ef;
+  --pastel-lavender: #efe9ff;
+  --pastel-peach: #ffede4;
+  --pastel-yellow: #fff3cd;
+}
+body {
+  background: radial-gradient(circle at 93% 12%, #e5f8f7 0, transparent 25%),
+    radial-gradient(circle at 9% 86%, #fff0d9 0, transparent 27%), #fffaf5;
+}
+h1, h2, h3, .brand, .folder-card-name, .teaching-title {
+  font-family: 'Fredoka', 'Nunito', 'Century Gothic', sans-serif;
+  letter-spacing: -.014em;
+}
+button, input, select, textarea { font-family: 'Nunito', 'Century Gothic', sans-serif; }
+button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, input:focus-visible, select:focus-visible, .quick-card:focus-visible, .folder-card-open:focus-visible {
+  outline: 3px solid #59cbbd;
+  outline-offset: 2px;
+}
+.button {
+  border-radius: 13px;
+  background: #f5f4ff;
+  color: #35455c;
+  border: 1px solid #e5e2f4;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 2px 0 #242f4010;
+  transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
+}
+.button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 0 #242f4010; }
+.button.primary {
+  color: white;
+  background: #168f88;
+  border-color: #168f88;
+  box-shadow: 0 3px 0 #0e6864;
+}
+.button.primary:hover:not(:disabled) { background: #0b7975; }
+.button.outline { background: #fff; border-color: #dcdfee; }
+.button.quiet { background: transparent; border-color: transparent; box-shadow: none; }
+.button.quiet:hover { background: #f2efff; }
+.button.danger-outline { color: var(--danger); border-color: #f1c9cd; }
+.eyebrow {
+  color: #6d66ac;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+.subtext { color: #63738a; font-size: 14px; line-height: 1.65; }
+
+/* Header and navigation */
+.library-header {
+  position: relative;
+  z-index: 8;
+  min-height: 78px;
+  height: auto;
+  padding-block: 12px;
+  background: #fffefd;
+  border-bottom: 2px solid #f4e8ec;
+  box-shadow: 0 4px 22px #3a4b6510;
+}
+.brand {
+  font-size: 22px;
+  font-weight: 600;
+  color: #364663;
+  background: none;
+}
+.brand:hover { color: #137f7d; }
+.header-actions { gap: 9px; }
+.teacher-pill, .viewer-pill {
+  border-radius: 100px;
+  background: #e5f6f1;
+  color: #166f66;
+  border: 1px solid #cbe9e0;
+  padding: 8px 12px;
+}
+.viewer-pill { background: #f0eeff; color: #655d96; border-color: #e5dfff; }
+.library-layout { max-width: 1850px; grid-template-columns: 250px minmax(0,1fr); }
+.library-sidebar {
+  background: linear-gradient(170deg, #f5f1ff 0%, #fdf2f0 65%, #fff9eb 100%);
+  border-right: 2px solid #f0e7ef;
+  padding: 32px 14px;
+}
+.sidebar-label { color: #8c78a7; font-size: 11px; }
+.sidebar-link {
+  border: 1px solid transparent;
+  border-radius: 14px;
+  margin-bottom: 7px;
+  padding: 14px 16px;
+  color: #5c6685;
+  font-size: 14px;
+  font-weight: 800;
+  transition: background .14s ease, transform .14s ease;
+}
+.sidebar-link:hover { background: #ffffffb8; transform: translateX(2px); }
+.sidebar-link.on {
+  color: #286b74;
+  background: white;
+  border-color: #d5ebe8;
+  box-shadow: 0 3px 11px #7c7ba214;
+}
+.sidebar-link.tone-peach.on { border-left: 5px solid #ef9883; }
+.sidebar-link.tone-lavender.on { border-left: 5px solid #ae91e9; }
+.sidebar-link.tone-mint.on { border-left: 5px solid #77cbbd; }
+.sidebar-link.tone-yellow.on { border-left: 5px solid #e8c56b; }
+.sidebar-link.create-link {
+  margin-top: 24px;
+  color: #177e7a;
+  background: #e5f6f2;
+  border-color: #cce7de;
+}
+.library-main { max-width: 1400px; padding: 26px clamp(20px, 3.6vw, 58px) 70px; }
+.library-site-footer { background: #fffefd; border-top-color: #f2e7ec; color: #8890a0; }
+.breadcrumbs { margin-bottom: 18px; }
+.crumb { color: #66758c; font-size: 12px; font-weight: 800; }
+.crumb-separator { color: #b1aac6; }
+
+/* Main hero: a little classroom magic, away from material pages. */
+.folder-hero {
+  position: relative;
+  overflow: hidden;
+  align-items: center;
+  min-height: 184px;
+  padding: 29px 34px;
+  margin-bottom: 24px;
+  border-radius: 23px;
+  background: linear-gradient(114deg, #f3e9ff 0%, #fff0ee 57%, #fff6da 100%);
+  border: 1px solid #efe1ed;
+  box-shadow: 0 7px 24px #645b7513;
+}
+.folder-hero::before {
+  content: '✦';
+  position: absolute;
+  right: 21px;
+  top: 12px;
+  font: 600 34px 'Fredoka', sans-serif;
+  color: #e4a6ca;
+  opacity: .65;
+  pointer-events: none;
+}
+.folder-hero::after {
+  content: '✳';
+  position: absolute;
+  right: 35%;
+  bottom: -23px;
+  font: 500 80px 'Fredoka', sans-serif;
+  color: #c9c9fa;
+  opacity: .28;
+  pointer-events: none;
+}
+.folder-hero > * { position: relative; z-index: 1; }
+.folder-hero h1 {
+  font-size: clamp(26px, 3.4vw, 41px);
+  color: #34405e;
+  line-height: 1.15;
+  margin-bottom: 10px;
+}
+.hero-actions { max-width: 425px; }
+.section-title {
+  color: #3a4866;
+  font: 600 19px 'Fredoka', sans-serif;
+  letter-spacing: -.01em;
+}
+.search-row { margin: 22px 0 29px; }
+.search-input {
+  max-width: 540px;
+  height: 52px;
+  border-radius: 16px;
+  border: 1px solid #e4dff0;
+  box-shadow: 0 3px 12px #3c435508;
+  background: white;
+}
+.search-input:focus { border-color: #79c7c0; outline: 3px solid #b9e7dd; outline-offset: 1px; }
+.publication-label { font-weight: 800; }
+
+/* Subject collections and lesson cards. */
+.folder-grid { grid-template-columns: repeat(auto-fill, minmax(216px, 1fr)); gap: 17px; }
+.folder-card {
+  isolation: isolate;
+  min-height: 175px;
+  overflow: visible;
+  border-radius: 19px;
+  border: 1px solid var(--tone-border, #e7e2ef);
+  background: var(--tone-background, #fff);
+  box-shadow: 0 4px 0 var(--tone-shadow, #eee8f1), 0 12px 19px #3d42540b;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.folder-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--tone-accent);
+  box-shadow: 0 7px 0 var(--tone-shadow), 0 17px 27px #3d425516;
+}
+.folder-card::before {
+  content: '✦';
+  position: absolute;
+  top: 17px;
+  right: 20px;
+  font-size: 19px;
+  color: var(--tone-accent);
+  opacity: .64;
+  pointer-events: none;
+}
+.tone-peach { --tone-background: #fff0e9; --tone-border: #f6d9cc; --tone-accent: #e18f7a; --tone-shadow: #f6ddd4; --tone-icon: #ffe2d6; }
+.tone-lavender { --tone-background: #f2ecff; --tone-border: #e1d7ff; --tone-accent: #967cce; --tone-shadow: #e6ddfa; --tone-icon: #e3d5ff; }
+.tone-mint { --tone-background: #e7f8f3; --tone-border: #ceeee4; --tone-accent: #319e93; --tone-shadow: #d7eee7; --tone-icon: #d2f1e7; }
+.tone-yellow { --tone-background: #fff4d7; --tone-border: #f6e4b8; --tone-accent: #c69240; --tone-shadow: #f4e8c8; --tone-icon: #ffebbb; }
+.folder-card-open { padding: 20px 19px; gap: 8px; min-height: 172px; }
+.folder-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: var(--tone-icon);
+  font-size: 27px;
+  margin-bottom: 2px;
+}
+.folder-card-name { color: #394660; font-size: 17px; font-weight: 600; }
+.folder-count { color: #6c7184; font-size: 11px; font-weight: 800; }
+.item-menu summary { color: #53647d; border-radius: 11px; }
+.menu-options { background: #fffefc; border-color: #e8e1ed; border-radius: 15px; box-shadow: 0 18px 32px #35384f28; }
+.menu-option:hover { background: #f5f0ff; }
+.quick-grid { gap: 14px; }
+.quick-card {
+  border-radius: 16px;
+  border-color: var(--tone-border);
+  background: var(--tone-background);
+  min-height: 83px;
+  box-shadow: 0 3px 0 var(--tone-shadow);
+}
+.quick-card:hover { border-color: var(--tone-accent); box-shadow: 0 5px 0 var(--tone-shadow); }
+.quick-icon { background: var(--tone-icon); font-size: 23px; color: var(--tone-accent); }
+.quick-copy strong { color: #34435f; font-size: 14px; }
+.quick-chevron { color: #8d8aaa; }
+
+/* Materials: clear scanning, compact enough for real teacher libraries. */
+.material-list { gap: 10px; }
+.material-row, .trash-row {
+  border: 1px solid #e4e3ee;
+  background: #fff;
+  border-radius: 15px;
+  min-height: 79px;
+  box-shadow: 0 2px 0 #e6e9f080;
+}
+.material-row:hover { border-color: #b5ded8; box-shadow: 0 4px 12px #6eb9ac18; }
+.material-open { gap: 14px; }
+.material-name { color: #34405b; font-size: 14px; }
+.material-icon { background: #e6f7ef; color: #177e77; border-radius: 13px; min-width: 49px; height: 49px; }
+.material-icon.kind-pdf { background: #fff0e6; color: #cf7961; }
+.material-icon.kind-youtube { background: #ffebea; color: #bc6171; }
+.material-icon.kind-image { background: #e7edff; color: #5e7dbb; }
+.material-icon.kind-audio { background: #f1eaff; color: #8a6bb5; }
+.material-icon.kind-link { background: #e5f6f5; color: #27877d; }
+.mini-button { border-radius: 10px; }
+.empty-state {
+  background: #fffefb;
+  border: 2px dashed #ded7ed;
+  border-radius: 18px;
+}
+.empty-icon { color: #bd9bcb; }
+.search-result { border-color: #e5e1ed; border-radius: 15px; }
+.search-result:hover { background: #f4efff; }
+
+/* Editing UI stays quiet; the document itself remains white. */
+.modal-cover { background: #2430469c; backdrop-filter: blur(3px); }
+.modal { border: 1px solid #f1e2e9; border-radius: 22px; box-shadow: 0 24px 70px #20314d45; }
+.modal-header h2 { font-size: 23px; color: #344260; }
+.form-field { color: #53607c; font-size: 13px; }
+.text-field { border-color: #e1dded; border-radius: 12px; color: #293e58; }
+.file-input { background: #fbf8ff; border-color: #ddd3f2; }
+.document-editor-v2 { background: white; border-color: #e4deee; border-radius: 16px; }
+.document-editor-v2 .format-toolbar {
+  background: #f8f5ff;
+  border-bottom-color: #e6dfed;
+}
+.document-editor-v2 .format-button { border-radius: 10px; }
+.document-editor-v2 .format-button:hover, .document-editor-v2 .format-button.format-active {
+  background: #e9e1fc;
+  color: #654e9c;
+  border-color: #cbbbe9;
+}
+.document-edit-paper { background: #f3f0f8; }
+.document-editor-v2 .rich-editor.tiptap { border-color: #e6e1eb; }
+.document-editor-v2 .rich-editor.tiptap:focus { border-color: #83cfc4; box-shadow: 0 0 0 3px #afe8e0; }
+.document-editor-v2 .rich-editor.tiptap th, .note-body th { background: #f2efff; }
+.toast { background: #176e73; border-radius: 14px; }
+.toast-error { background: #ab4550; }
+
+/* Teaching mode: the document toolbar shares ONE compact tab row.
+   Remove the old separate top bar entirely; maximize lesson canvas. */
+.teaching-shell { background: #f1f0f4; }
+.lesson-tabs {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 51px;
+  min-height: 51px;
+  padding: 5px 11px;
+  background: #fffefa;
+  border-bottom: 1px solid #e5e0ed;
+  box-shadow: 0 2px 9px #29365212;
+  overflow: visible;
+  position: relative;
+  z-index: 5;
+}
+.lesson-tab-back, .lesson-tab-fullscreen {
+  flex: none;
+  border: 1px solid #e5ddec;
+  border-radius: 11px;
+  height: 38px;
+  background: #f5f1ff;
+  color: #65518f;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  padding: 0 12px;
+}
+.lesson-tab-back:hover, .lesson-tab-fullscreen:hover { background: #ece5ff; }
+.lesson-tab-fullscreen { font-size: 25px; min-width: 43px; padding: 0 8px; }
+.lesson-folder-label {
+  flex: none;
+  max-width: 166px;
+  padding: 0 8px;
+  color: #708098;
+  font-size: 11px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lesson-tab-list {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 5px;
+  min-width: 0;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.lesson-tab {
+  min-height: 37px;
+  height: 37px;
+  max-width: 235px;
+  background: transparent;
+  color: #6e7692;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 8px 13px;
+  font-size: 12px;
+  font-weight: 900;
+}
+.lesson-tab:hover { background: #f2f0fc; }
+.lesson-tab.selected {
+  background: #e9f8f4;
+  color: #176f6a;
+  border-color: #c5e7df;
+  box-shadow: inset 0 -3px #54bdb1;
+}
+.teaching-status {
+  flex: none;
+  max-width: 145px;
+  font-size: 10px;
+  color: #776790;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.teaching-status:empty { display: none; }
+.teaching-tools {
+  width: 91px;
+  background: #fffefa;
+  border-right-color: #e7dfee;
+}
+.teaching-tools .tool-collapse { width: 79px; background: #f1eafa; border-color: #e0d5ef; color: #615182; }
+.teaching-tools .tool-button { width: 79px; border-radius: 10px; }
+.tool-button.active { background: #e3f5ef; border-color: #a8ded3; color: #146e68; box-shadow: inset 0 -3px #74c8b8; }
+.tool-size-slider { accent-color: #168f88; }
+.teaching-viewer { background: #f0eff3; padding: 14px; gap: 15px; }
+.pdf-pages { gap: 15px; }
+.pdf-page, .note-page, .image-page { box-shadow: 0 3px 16px #2c385d1e; }
+.lesson-footer { background: #fffefa; border-top-color: #e7e2ed; min-height: 45px; }
+.audio-panel, .external-link-panel { border-color: #e5ddec; border-radius: 21px; }
+.external-icon { background: #e5f6f0; color: #178e86; }
+
+/* Smarter use of available space on tablets and smartboards. */
+@media (max-width: 960px) {
+  .library-layout { grid-template-columns: 1fr; }
+  .library-sidebar {
+    display: flex;
+    align-items: center;
+    min-height: unset;
+    overflow-x: auto;
+    gap: 5px;
+    padding: 10px 14px;
+    border-right: 0;
+    border-bottom: 1px solid #eee3ee;
+  }
+  .sidebar-label { display: none; }
+  .sidebar-link { flex: none; width: auto; white-space: nowrap; margin: 0; padding: 11px 13px; }
+  .sidebar-link:hover { transform: none; }
+  .library-main { max-width: 100%; }
+  .folder-hero { min-height: 160px; }
+}
+@media (max-width: 700px) {
+  .library-header { padding: 9px 13px; gap: 6px; }
+  .brand { font-size: 17px; }
+  .header-actions .button { min-height: 36px; font-size: 11px; padding: 6px 9px; }
+  .library-main { padding: 15px 13px 40px; }
+  .folder-hero { padding: 22px 19px; min-height: 160px; border-radius: 18px; }
+  .folder-hero h1 { font-size: 27px; }
+  .folder-grid { grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 12px; }
+  .folder-card, .folder-card-open { min-height: 154px; }
+  .folder-card-open { padding: 15px; }
+  .folder-icon { width: 42px; height: 42px; font-size: 22px; }
+  .folder-card-name { font-size: 15px; }
+  .folder-count { font-size: 10px; }
+  .lesson-tabs { height: 47px; min-height: 47px; padding: 5px 6px; gap: 4px; }
+  .lesson-tab-back { padding: 0 9px; font-size: 11px; }
+  .lesson-folder-label { max-width: 80px; font-size: 10px; padding: 0 3px; }
+  .lesson-tab { max-width: 140px; min-height: 35px; height: 35px; padding: 7px 9px; font-size: 11px; }
+  .lesson-tab-fullscreen { height: 36px; min-width: 36px; font-size: 22px; }
+  .teaching-status { max-width: 85px; }
+  .teaching-viewer { padding: 7px; }
+}
+@media (max-width: 430px) {
+  .lesson-folder-label { display: none; }
+  .teaching-status { display: none; }
+  .lesson-tab-back { font-size: 0; width: 39px; }
+  .lesson-tab-back::before { content: '←'; font-size: 20px; }
+  .folder-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .header-actions { justify-content: flex-end; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .folder-card, .button, .sidebar-link, .quick-card { transition: none; }
+}
