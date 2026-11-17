@@ -36,6 +36,53 @@ function children(parentId) { return ordered(activeFolders().filter((folder) => 
 function folderPath(folder) { return allAncestors(folder, state.folders).map((item) => item.name).join(' / '); }
 function nextPosition(rows) { return Math.max(0, ...rows.map((x) => x.sort_order || 0)) + 10; }
 
+const QUICK_RECENT = 'teaching-hub-recent-v1';
+const QUICK_PINNED = 'teaching-hub-pinned-v1';
+function readFolderIds(key) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || '[]');
+    return Array.isArray(value) ? value.filter((id) => typeof id === 'string').slice(0, 12) : [];
+  } catch { return []; }
+}
+function writeFolderIds(key, ids) {
+  try { localStorage.setItem(key, JSON.stringify(ids.slice(0, 12))); }
+  catch { /* Bookmarks are optional if storage is unavailable. */ }
+}
+function visitFolder(id) {
+  writeFolderIds(QUICK_RECENT, [id, ...readFolderIds(QUICK_RECENT).filter((old) => old !== id)]);
+}
+function togglePinned(id) {
+  const stored = readFolderIds(QUICK_PINNED);
+  const pinned = stored.includes(id);
+  writeFolderIds(QUICK_PINNED, pinned ? stored.filter((x) => x !== id) : [id, ...stored]);
+  renderLibrary();
+}
+function renderQuickAccess(main) {
+  const visible = new Map(activeFolders().map((folder) => [folder.id, folder]));
+  const addSection = (title, ids) => {
+    const chosen = ids.map((id) => visible.get(id)).filter(Boolean)
+      .filter((folder) => activeMaterials().some((m) => m.folder_id === folder.id))
+      .slice(0, 5);
+    if (!chosen.length) return;
+    const section = el('section', 'quick-section');
+    section.append(el('h2', 'section-title', title));
+    const list = el('div', 'quick-grid');
+    chosen.forEach((folder) => {
+      const open = button('', () => openFolder(folder.id), 'quick-card');
+      open.append(el('span', 'quick-icon', '▣'));
+      const copy = el('span', 'quick-copy');
+      copy.append(el('strong', '', folder.name), el('small', '', folderPath(folder)));
+      open.append(copy, el('span', 'quick-chevron', '›'));
+      list.append(open);
+    });
+    section.append(list);
+    main.append(section);
+  };
+  addSection('★ Pinned lessons', readFolderIds(QUICK_PINNED));
+  addSection('↺ Recently used', readFolderIds(QUICK_RECENT));
+}
+
+
 async function loadData() {
   const [folders, materials] = await Promise.all([
     supabase.from('folders').select('*').order('sort_order'),
@@ -182,6 +229,10 @@ function renderFolder(main) {
   if (current) {
     const lessonItems = ordered(activeMaterials().filter((material) => material.folder_id === current.id));
     if (lessonItems.length) heroActions.append(button('▶ Start lesson', () => startLesson(current), 'button primary start-button'));
+    const pinned = readFolderIds(QUICK_PINNED).includes(current.id);
+    const pin = button(pinned ? '★ Unpin lesson' : '☆ Pin lesson', () => togglePinned(current.id), 'button outline');
+    pin.title = 'Pin this lesson on this device for fast access';
+    heroActions.append(pin);
     if (current.is_public) heroActions.append(button('Copy lesson link', () => copyLessonLink(current), 'button quiet'));
   }
   hero.append(heroActions);
@@ -196,7 +247,12 @@ function renderFolder(main) {
   });
   searchRow.append(search);
   if (current && state.teacher) searchRow.append(el('span', `publication-label ${current.is_public ? 'published' : ''}`, current.is_public ? '● Published' : '○ Private'));
+  const searchButton = button('Search', () => {
+    if (search.value.trim()) { state.search = search.value.trim(); renderLibrary(); }
+  }, 'button outline');
+  searchRow.append(searchButton);
   main.append(searchRow);
+  if (!current) renderQuickAccess(main);
 
   const folders = children(current?.id || null);
   if (folders.length) {
@@ -280,17 +336,43 @@ function renderFolder(main) {
 function renderSearch(main) {
   main.append(button('← Back to library', () => { state.search = ''; renderLibrary(); }, 'button quiet'));
   main.append(el('h1', '', `Results for “${state.search}”`));
-  const query = state.search.toLocaleLowerCase();
-  const results = activeMaterials().filter((item) => item.title.toLocaleLowerCase().includes(query));
-  if (!results.length) { main.append(el('p', 'empty-state', 'No matching materials found.')); return; }
-  const list = el('div', 'material-list');
-  results.forEach((item) => {
-    const folder = state.folders.find((f) => f.id === item.folder_id);
-    const row = button(`${META[item.kind].label} · ${item.title} — ${folder?.name || 'Folder'}`, () => {
-      state.search = ''; state.folderId = item.folder_id; startLesson(folder, item.id);
-    }, 'search-result');
-    list.append(row);
+  const query = state.search.trim().toLocaleLowerCase();
+  const folderResults = activeFolders().filter((folder) =>
+    folder.name.toLocaleLowerCase().includes(query));
+  const materialResults = activeMaterials().filter((item) => {
+    if (item.title.toLocaleLowerCase().includes(query)) return true;
+    if (item.kind !== 'note') return false;
+    const sample = el('div');
+    sample.innerHTML = safeNote(item.content || '');
+    return (sample.textContent || '').toLocaleLowerCase().includes(query);
   });
+  if (!folderResults.length && !materialResults.length) {
+    main.append(el('p', 'empty-state', 'No matching lessons or materials found.'));
+    return;
+  }
+  const list = el('div', 'material-list');
+  if (folderResults.length) {
+    list.append(el('h2', 'section-title', `Folders (${folderResults.length})`));
+    folderResults.forEach((folder) => {
+      const row = button('', () => openFolder(folder.id), 'search-result');
+      row.append(el('span', 'search-main', `▣  ${folder.name}`),
+        el('span', 'search-context', folderPath(folder)));
+      list.append(row);
+    });
+  }
+  if (materialResults.length) {
+    list.append(el('h2', 'section-title', `Materials (${materialResults.length})`));
+    materialResults.forEach((item) => {
+      const folder = activeFolders().find((f) => f.id === item.folder_id);
+      if (!folder) return;
+      const row = button('', () => {
+        state.search = ''; state.folderId = item.folder_id; startLesson(folder, item.id);
+      }, 'search-result');
+      row.append(el('span', 'search-main', `${META[item.kind]?.label || 'Material'} · ${item.title}`),
+        el('span', 'search-context', folderPath(folder)));
+      list.append(row);
+    });
+  }
   main.append(list);
 }
 
@@ -521,6 +603,7 @@ function startLesson(folder, selectedId) {
   const items = ordered(activeMaterials().filter((item) => item.folder_id === folder.id));
   if (!items.length) return toast('Add materials to this folder first.');
   state.folderId = folder.id;
+  visitFolder(folder.id);
   mountTeaching(root, folder, items, selectedId, () => {
     history.replaceState(null, '', location.pathname);
     renderLibrary();
