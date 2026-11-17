@@ -39,7 +39,7 @@ The website is a **classroom lesson workspace**, not a general-purpose document 
 - **Duplicate lesson folder**, including nested folders/materials. A new duplicate is initially private; published files are referenced rather than re-uploaded.
 
 **Next engineering iteration (not yet implemented):**
-- Upgrade rich text editing to a maintained editor foundation (e.g. ProseMirror/Tiptap) with rich tables, embedded images, font controls and structured undo history.
+- **Implemented in the document-editor v2 release:** migrated editing from legacy browser formatting commands to Tiptap/ProseMirror, with headings, font family/size, alignment, indentation, tables, inline HTTPS or uploaded pictures, and structured undo/redo. Existing notes stay in the materials.content HTML field. Saving still requires protected teacher authorization.
 - Improve accessibility and material previews, particularly on narrow screens.
 - Add a reliable version history for original documents before expanding automatic cloud autosave.
 - Consider reusable lesson templates and teacher-controlled playlist collections across multiple folders.
@@ -85,3 +85,14 @@ The website is a **classroom lesson workspace**, not a general-purpose document 
 - No new paid service was introduced.
 - Prior setup requirements (`EDITOR_EMAIL` and `media-upgrade.sql`) remain if they were not completed.
 - GitHub/Vercel automated build success verifies bundling, but does **not** prove all touchscreen interactions or backend writes on live classroom equipment.
+
+## Document editor v2 — deployment and verification
+
+- Uses Tiptap 3.31.3 with a refreshed, committed npm lockfile. No added paid services or database migration.
+- Existing content is parsed as sanitized HTML. The app does **not** bulk rewrite documents. Editing and saving legacy notes can normalize formatting; test on a duplicated lesson first.
+- Insert tables, add/delete rows and columns, align text, choose fonts and sizes, and use Tab/Shift+Tab indentation. Structured undo/redo remains in the editor.
+- Uploaded images inside notes need the pre-existing media-upgrade.sql Supabase migration and teaching-media bucket; public HTTPS image URLs require no upload.
+- Print / Save PDF is the closest representation of complex tables/images. Word export uses an HTML-to-Word converter and may render complex layouts differently.
+- Draft recovery remains session-only and does not replace clicking Save material. Unsaved inline images are scheduled for cleanup on cancel.
+- The classroom note annotation canvas is resized and redrawn after inline images finish loading.
+- Real browser and smartboard QA is required, especially for large pasted notes, complex tables, touch input, ink alignment, uploads and exports. Vercel build success is not runtime QA.
