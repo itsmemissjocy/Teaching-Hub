@@ -1,4 +1,5 @@
 import './styles.css';
+import './creative-classroom.css';
 import {
   configured, supabase, SUBJECTS, META, el, button,
   safeNote, safeHttpUrl, youtubeId, ordered, isActiveFolder,
@@ -36,6 +37,16 @@ function currentFolder() { return activeFolders().find((folder) => folder.id ===
 function children(parentId) { return ordered(activeFolders().filter((folder) => folder.parent_id === parentId)); }
 function folderPath(folder) { return allAncestors(folder, state.folders).map((item) => item.name).join(' / '); }
 function nextPosition(rows) { return Math.max(0, ...rows.map((x) => x.sort_order || 0)) + 10; }
+/** Stable classroom colours follow the subject, including nested lesson folders. */
+function folderTone(folder) {
+  const subject = allAncestors(folder, state.folders)[0] || folder;
+  const label = subject.name.toLowerCase();
+  if (/^(bm|bahasa melayu)\b/.test(label)) return /\b6\b|tahun 6/.test(label) ? 'lavender' : 'peach';
+  if (/^(pj|pk|pjpk|pendidikan jasmani|pendidikan kesihatan)\b/.test(label)) return /\b3\b|tahun 3/.test(label) ? 'yellow' : 'mint';
+  const tones = ['mint', 'lavender', 'peach', 'yellow'];
+  const hash = Array.from(subject.name).reduce((sum, letter) => sum + letter.codePointAt(0), 0);
+  return tones[hash % tones.length];
+}
 
 const QUICK_RECENT = 'teaching-hub-recent-v1';
 const QUICK_PINNED = 'teaching-hub-pinned-v1';
@@ -69,8 +80,8 @@ function renderQuickAccess(main) {
     section.append(el('h2', 'section-title', title));
     const list = el('div', 'quick-grid');
     chosen.forEach((folder) => {
-      const open = button('', () => openFolder(folder.id), 'quick-card');
-      open.append(el('span', 'quick-icon', '▣'));
+      const open = button('', () => openFolder(folder.id), `quick-card tone-${folderTone(folder)}`);
+      open.append(el('span', 'quick-icon', '📂'));
       const copy = el('span', 'quick-copy');
       copy.append(el('strong', '', folder.name), el('small', '', folderPath(folder)));
       open.append(copy, el('span', 'quick-chevron', '›'));
@@ -159,7 +170,7 @@ function renderLibrary() {
   root.replaceChildren();
   const outer = el('div', 'library-shell');
   const header = el('header', 'library-header');
-  const brand = button('✳  My Teaching Hub', () => { state.folderId = null; state.trash = false; state.search = ''; renderLibrary(); }, 'brand');
+  const brand = button('✿  My Teaching Hub', () => { state.folderId = null; state.trash = false; state.search = ''; renderLibrary(); }, 'brand');
   const headerActions = el('div', 'header-actions');
   if (state.teacher) {
     headerActions.append(el('span', 'teacher-pill', 'Editing unlocked'));
@@ -178,7 +189,7 @@ function renderLibrary() {
   const sidebar = el('aside', 'library-sidebar');
   sidebar.append(el('div', 'sidebar-label', 'YOUR SUBJECTS'));
   sidebar.append(button('⌂  All subjects', () => { state.folderId = null; state.trash = false; state.search = ''; renderLibrary(); }, `sidebar-link ${!state.folderId && !state.trash ? 'on' : ''}`));
-  children(null).forEach((folder) => sidebar.append(button(`▣  ${folder.name}`, () => openFolder(folder.id), `sidebar-link ${allAncestors(currentFolder(), state.folders).some((f) => f.id === folder.id) ? 'on' : ''}`)));
+  children(null).forEach((folder) => sidebar.append(button(`▣  ${folder.name}`, () => openFolder(folder.id), `sidebar-link tone-${folderTone(folder)} ${allAncestors(currentFolder(), state.folders).some((f) => f.id === folder.id) ? 'on' : ''}`)));
   if (state.teacher) sidebar.append(button('＋  New subject', () => createFolder(null), 'sidebar-link create-link'));
   const main = el('main', 'library-main');
   if (state.trash) renderTrash(main);
@@ -261,9 +272,9 @@ function renderFolder(main) {
     main.append(el('h2', 'section-title', current ? 'Folders inside this collection' : 'Subjects'));
     const grid = el('div', 'folder-grid');
     folders.forEach((folder) => {
-      const card = el('div', 'folder-card');
+      const card = el('div', `folder-card tone-${folderTone(folder)}`);
       const open = button('', () => openFolder(folder.id), 'folder-card-open');
-      open.append(el('span', 'folder-icon', '▣'), el('span', 'folder-card-name', folder.name));
+      open.append(el('span', 'folder-icon', current ? '📁' : '📚'), el('span', 'folder-card-name', folder.name));
       open.append(el('span', 'folder-count', `${children(folder.id).length} folders · ${activeMaterials().filter((m) => m.folder_id === folder.id).length} materials`));
       card.append(open);
       if (state.teacher) card.append(menu([
