@@ -655,6 +655,22 @@ function showMaterialEditor(folderId, existing = null) {
   richEditor.setAttribute('role','textbox'); richEditor.setAttribute('aria-label','Editable document content');
   richEditor.setAttribute('aria-multiline','true');
   richEditor.innerHTML = safeNote(existing?.content || '<p></p>');
+  // Drafts remain in this tab's session only; no unsaved content is uploaded.
+  const draftKey = `teaching-hub-note-draft:${state.user.id}:${existing?.id || folderId + ':new'}`;
+  let previousDraft = null;
+  try { previousDraft = JSON.parse(sessionStorage.getItem(draftKey) || 'null'); }
+  catch { /* Storage can be unavailable in private browser modes. */ }
+  const draftPrompt = el('div', 'draft-prompt');
+  if (previousDraft?.kind === 'note' &&
+      (previousDraft.html !== richEditor.innerHTML || previousDraft.title !== title.value)) {
+    const restore = button('↶ Restore unsaved document draft', () => {
+      title.value = previousDraft.title || '';
+      richEditor.innerHTML = safeNote(previousDraft.html || '<p></p>');
+      richEditor.dispatchEvent(new Event('input', { bubbles: true }));
+      draftPrompt.replaceChildren(el('span', 'field-hint', 'Draft restored. Save the document to keep these changes online.'));
+    }, 'button outline');
+    draftPrompt.append(el('p', 'field-hint', 'Unsaved text from this browser session was found.'), restore);
+  }
   const urlInput = el('input','text-field'); urlInput.type='url'; urlInput.placeholder='https://'; urlInput.value=existing?.url || '';
   const fileInput = el('input','file-input'); fileInput.type='file'; fileInput.accept='application/pdf,.pdf';
   const mediaInput = el('input','file-input'); mediaInput.type='file';
@@ -707,7 +723,7 @@ function showMaterialEditor(folderId, existing = null) {
     dynamic.replaceChildren();
     if (kind.value === 'note') dynamic.append(
       el('p', 'field-hint', 'Paste or type here. Use Tab / Shift+Tab to indent or outdent paragraphs. Save material keeps the document online; exporting downloads a separate copy.'),
-      format,richEditor,exportActions,
+      format,richEditor,draftPrompt,exportActions,
     );
     else if (kind.value === 'pdf') {
       dynamic.append(formLine('Upload a PDF (recommended; max 25 MB)',fileInput));
@@ -723,8 +739,34 @@ function showMaterialEditor(folderId, existing = null) {
   kind.addEventListener('change',switchFields);
   switchFields();
   let dirty = false;
-  [title,urlInput,kind,fileInput,mediaInput,richEditor].forEach((field) => field.addEventListener('input', () => { dirty=true; feedback.textContent='Unsaved changes'; }));
-  const dismiss = () => { if (!dirty || window.confirm('Discard unsaved changes?')) overlay.remove(); };
+  let draftTimer = null;
+  const saveLocalDraft = () => {
+    if (kind.value !== 'note') return;
+    try {
+      sessionStorage.setItem(draftKey, JSON.stringify({
+        kind: 'note', title: title.value, html: safeNote(richEditor.innerHTML),
+      }));
+    } catch { /* Session draft storage is a convenience, not the primary save. */ }
+  };
+  const beforeUnload = (event) => {
+    if (!dirty) return;
+    event.preventDefault();
+    event.returnValue = '';
+  };
+  window.addEventListener('beforeunload', beforeUnload);
+  [title,urlInput,kind,fileInput,mediaInput,richEditor].forEach((field) => field.addEventListener('input', () => {
+    dirty = true;
+    feedback.textContent = 'Unsaved changes — document draft kept in this tab';
+    window.clearTimeout(draftTimer);
+    if (kind.value === 'note') draftTimer = window.setTimeout(saveLocalDraft, 350);
+  }));
+  const dismiss = () => {
+    if (dirty && !window.confirm('Discard unsaved changes?')) return;
+    window.clearTimeout(draftTimer);
+    window.removeEventListener('beforeunload', beforeUnload);
+    try { sessionStorage.removeItem(draftKey); } catch {}
+    overlay.remove();
+  };
   close.onclick = dismiss;
   overlay.onclick = (event) => { if (event.target === overlay) dismiss(); };
   const save = button(existing ? 'Save changes' : 'Save material', async () => {
@@ -780,7 +822,12 @@ function showMaterialEditor(folderId, existing = null) {
       else await check(await supabase.from('materials').insert({
         ...data, sort_order:nextPosition(state.materials.filter((m) => m.folder_id === folderId)),
       }));
-      dirty=false; overlay.remove(); toast('Saved successfully. Your material is available on other devices.');
+      dirty = false;
+      window.clearTimeout(draftTimer);
+      window.removeEventListener('beforeunload', beforeUnload);
+      try { sessionStorage.removeItem(draftKey); } catch {}
+      overlay.remove();
+      toast('Saved successfully. Your material is available on other devices.');
       await loadData(); renderLibrary();
     } catch (error) {
       if (uploadedPath) await supabase.storage.from(uploadedBucket || 'teaching-pdfs').remove([uploadedPath]);
@@ -788,6 +835,12 @@ function showMaterialEditor(folderId, existing = null) {
       save.disabled=false;
     }
   },'button primary full');
+  richEditor.addEventListener('keydown', (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      if (!save.disabled) save.click();
+    }
+  });
   dialog.append(formLine('Material type',kind),formLine('Title',title),dynamic,feedback,save);
 }
 
