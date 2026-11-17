@@ -239,3 +239,31 @@ h1, h2, h3 { font-family: Manrope, 'DM Sans', sans-serif; letter-spacing: -.035e
   .teaching-tools .tool-symbol { font-size:21px; }
 }
 @media (prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior:auto !important; transition:none !important; } }
+
+/* Structured rich-text document editor, optimized for printable classroom notes. */
+.material-modal { width:min(960px,100%); }
+.document-editor-v2 { background:#fffefa; border-radius:14px; border:1px solid #d6e2d7; overflow:hidden; }
+.document-editor-v2 .format-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:0; padding:12px; border:0; border-bottom:1px solid #d6e2d7; background:#f0f4ee; border-radius:0; }
+.document-editor-v2 .format-button { min-height:37px; height:auto; padding:8px 11px; white-space:nowrap; font-size:12px; border:1px solid #d8e4da; border-radius:9px; cursor:pointer; }
+.document-editor-v2 .format-button:hover, .document-editor-v2 .format-button.format-active { background:#dcecdf; color:#24583b; border-color:#a5c4ae; }
+.format-select { min-height:37px; background:#fff; color:#25382f; border:1px solid #cfdbd1; border-radius:9px; padding:0 10px; font-size:12px; max-width:160px; }
+.document-edit-paper { padding:16px; background:#e9efeb; }
+.document-editor-v2 .rich-editor.tiptap { margin:auto; width:min(100%,795px); max-height:57vh; min-height:400px; padding:40px 45px; background:white; border:1px solid #dce2dd; border-radius:8px; box-shadow:0 4px 21px #21382915; font-size:16px; line-height:1.72; overflow:auto; outline:none; }
+.document-editor-v2 .rich-editor.tiptap:focus { border-color:#93b59e; box-shadow:0 0 0 3px #93b59e40; }
+.document-editor-v2 .rich-editor.tiptap img, .note-body img { display:block; max-width:100%; height:auto; margin:14px auto; object-fit:contain; }
+.document-editor-v2 .rich-editor.tiptap table, .note-body table { border-collapse:collapse; width:100%; margin:16px 0; table-layout:fixed; }
+.document-editor-v2 .rich-editor.tiptap th, .document-editor-v2 .rich-editor.tiptap td, .note-body th, .note-body td { padding:8px 10px; border:1px solid #a7b9ae; vertical-align:top; overflow-wrap:anywhere; }
+.document-editor-v2 .rich-editor.tiptap th, .note-body th { background:#eaf2eb; font-weight:700; }
+.document-editor-v2 .rich-editor.tiptap .selectedCell { background:#e1ede5; }
+.document-editor-v2 .rich-editor.tiptap h1 { font-size:27px; }
+.document-editor-v2 .rich-editor.tiptap h2 { font-size:23px; }
+.document-editor-v2 .rich-editor.tiptap h3 { font-size:20px; }
+.document-editor-v2 .rich-editor.tiptap ul, .document-editor-v2 .rich-editor.tiptap ol { padding-left:27px; }
+.document-editor-v2 .rich-editor.tiptap blockquote { padding-left:14px; border-left:3px solid #93b6a0; }
+@media (max-width: 740px) {
+ .document-edit-paper { padding:6px; }
+ .document-editor-v2 .rich-editor.tiptap { min-height:290px; max-height:50vh; padding:22px 16px; }
+ .document-editor-v2 .format-toolbar { padding:7px; gap:4px; }
+ .document-editor-v2 .format-button { padding:7px 9px; }
+ .format-select { max-width:128px; }
+}
