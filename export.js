@@ -52,6 +52,11 @@ export function printDocument(title, html) {
     h2 { font-size: 16pt; } h3 { font-size: 14pt; }
     p { margin: 0 0 10pt; } li { margin-bottom: 4pt; }
     blockquote { border-left: 3px solid #ccd8cf; padding-left: 12pt; }
+    table { border-collapse: collapse; width: 100%; table-layout: fixed; margin: 10pt 0; }
+    th, td { border: 1px solid #8c9d90; padding: 6pt; vertical-align: top; overflow-wrap: anywhere; }
+    th { background: #edf2ed; }
+    img { display: block; max-width: 100%; height: auto; object-fit: contain; margin: 10pt auto; }
+    h1, h2, h3, tr { break-inside: avoid; }
     @media screen { body { padding: 32px; } }
   `;
   const heading = doc.createElement('h1');
